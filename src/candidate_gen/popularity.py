@@ -1,6 +1,6 @@
 """Non-personalized popularity-based candidate recommendation baseline."""
 
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 from .base import BaseCandidateGenerator
@@ -61,6 +61,16 @@ class PopularityRecommender(BaseCandidateGenerator):
 
         return recommendations
 
+    def recommend_with_scores(
+        self,
+        user_idx: int,
+        k: int = 10,
+        exclude_seen: bool = True,
+    ) -> List[Tuple[int, float]]:
+        """Return top-K popular movies with their positive interaction count as score."""
+        item_ids = self.recommend(user_idx, k=k, exclude_seen=exclude_seen)
+        return [(item_id, float(self.item_counts[item_id])) for item_id in item_ids]
+
     def recommend_all(
         self,
         user_indices: Sequence[int],
@@ -74,4 +84,18 @@ class PopularityRecommender(BaseCandidateGenerator):
         result: Dict[int, List[int]] = {}
         for u in user_indices:
             result[u] = self.recommend(u, k=k, exclude_seen=exclude_seen)
+        return result
+
+    def recommend_all_with_scores(
+        self,
+        user_indices: Sequence[int],
+        k: int = 10,
+        exclude_seen: bool = True,
+    ) -> Dict[int, List[Tuple[int, float]]]:
+        if not self.is_fitted:
+            raise RuntimeError(f"{self.name} must be fitted before calling recommend_all_with_scores.")
+
+        result: Dict[int, List[Tuple[int, float]]] = {}
+        for u in user_indices:
+            result[u] = self.recommend_with_scores(u, k=k, exclude_seen=exclude_seen)
         return result

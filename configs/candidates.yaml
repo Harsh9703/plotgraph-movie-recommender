@@ -1,4 +1,4 @@
-# Configuration for Phase 2A Candidate Recommendation Baselines
+# Configuration for Candidate Recommendation Baselines (Phase 2A & Phase 2B)
 
 paths:
   train_split: "data/processed/ml-1m/splits/train.parquet"
@@ -6,6 +6,7 @@ paths:
   user_id_map: "data/processed/ml-1m/id_maps/user_id_map.parquet"
   movie_id_map: "data/processed/ml-1m/id_maps/movie_id_map.parquet"
   catalog_movies: "data/processed/ml-1m/movies.parquet"
+  candidates_output_dir: "data/processed/ml-1m/candidates"
 
 data:
   positive_threshold: 4.0
@@ -20,7 +21,27 @@ models:
     similarity: "cosine"
     shrinkage: 0.0
 
+  als:
+    name: "ALS"
+    grid:
+      factors: [32, 64]
+      regularization: [0.01, 0.1]
+      iterations: [15]
+
+  bpr:
+    name: "BPR"
+    grid:
+      factors: [32, 64]
+      regularization: [0.01, 0.1]
+      iterations: [50]
+
+  ease:
+    name: "EASE"
+    grid:
+      reg: [100.0, 300.0, 500.0]
+
 evaluation:
   cutoffs: [10, 20]
+  top_k_candidates: 100
   exclude_seen: true
   seed: 42

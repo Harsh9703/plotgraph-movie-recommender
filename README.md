@@ -85,6 +85,10 @@ The test suite covers:
 6. `tests/test_popularity.py`: Popularity baseline positive training counts, exclusion of seen positive items, and deterministic tie-breaking.
 7. `tests/test_item_knn.py`: ItemKNN sparse matrix cosine similarity, cluster-based personalization, ignoring non-positives, and deterministic top-K selection.
 8. `tests/test_candidate_eval.py`: Evaluation harness validation relevance ($r \ge 4$), training history isolation, and empty user handling.
+9. `tests/test_als.py`: Implicit ALS fitting, positive-only interactions, and exclusion of seen training items.
+10. `tests/test_bpr.py`: BPR matrix factorization fitting, scoring, and deterministic recommendations.
+11. `tests/test_ease.py`: EASE closed-form Gram matrix inversion, zero diagonal assertion, and personalization.
+12. `tests/test_phase2b_selection.py`: Validation grid search, model selection by validation NDCG@10, Top-100 candidate pool export, and Recall@100 evaluation.
 
 ---
 
@@ -116,4 +120,40 @@ Evaluated across **5,805 validation users** who have at least one positive inter
 - **Recall@10**: **+78.98%**
 - **HR@10**: **+33.49%**
 - **MRR@10**: **+21.70%**
+
+---
+
+## Phase 2B: Classical Model Tuning & Top-100 Candidate Selection
+
+Phase 2B completes the classical candidate-generation tier:
+- **`ALSRecommender`**: Matrix Factorization using Implicit Alternating Least Squares (Hu et al., 2008).
+- **`BPRRecommender`**: Bayesian Personalized Ranking for implicit feedback (Rendle et al., 2009).
+- **`EASERecommender`**: Embarrassingly Shallow Autoencoders (Steck, 2019) with closed-form L2-regularized weight matrix inversion.
+- **Validation Hyperparameter Grid Search**: Small grid search across models using strictly validation NDCG@10 (TEST split remains untouched).
+- **Five-Model Fair Benchmark**: Comparison across all 5 classical models under the exact same chronological validation protocol.
+- **Top-100 Candidate Pool Generation**: Full candidate pool ($6,040 \times 100 = 604,000$ rows) exported to `data/processed/ml-1m/candidates/top100_candidates.parquet` for later PlotGraph reranking stages.
+- **Recall@100 Coverage Evaluation**: Evaluating the percentage of validation positive items captured within the Top-100 candidate pool.
+
+### Running Phase 2B Pipeline
+
+```bash
+python scripts/run_phase2b_models.py --config configs/candidates.yaml
+```
+
+### Five-Model Validation Benchmark (Full-Catalog Ranking, 5,805 Evaluated Users)
+
+| Model | Selected Configuration | NDCG@10 | Recall@10 | HR@10 | MRR@10 | NDCG@20 | Recall@20 | HR@20 | MRR@20 | Train Time | Eval Time |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Popularity** | non-personalized | 0.0490 | 0.0432 | 0.2305 | 0.0954 | 0.0617 | 0.0857 | 0.3611 | 0.1044 | 0.135s | 0.234s |
+| **BPR** | factors=32, reg=0.01, iters=50 | 0.0592 | 0.0704 | 0.2734 | 0.1009 | 0.0761 | 0.1215 | 0.4169 | 0.1107 | 4.625s | 0.396s |
+| **ItemKNN** | k_neighbors=40 | 0.0679 | 0.0772 | 0.3077 | 0.1161 | 0.0883 | 0.1383 | 0.4711 | 0.1275 | 2.011s | 1.556s |
+| **ALS** | factors=32, reg=0.01, iters=15 | 0.0722 | 0.0844 | 0.3276 | 0.1216 | 0.0916 | 0.1433 | 0.4844 | 0.1323 | 1.396s | 0.508s |
+| **EASE** | reg=500.0 | **0.0776** | **0.0909** | **0.3414** | **0.1295** | **0.0984** | **0.1540** | **0.5104** | **0.1410** | 3.491s | 2.554s |
+
+### Selected Candidate Generator & Top-100 Coverage
+- **Selected Model**: **EASE** ($\lambda = 500.0$), achieving the highest validation NDCG@10 (**0.0776**).
+- **Candidate Pool**: 604,000 candidate items exported across all 6,040 MovieLens-1M users (100 candidates per user).
+- **Validation Recall@100**: **0.4421** (44.21% of held-out future validation positives are present in the candidate pool).
+- **Data Leakage Check**: 0 seen positive training items leaked into the candidate pool.
+
 

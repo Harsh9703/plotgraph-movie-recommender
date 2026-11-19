@@ -1,7 +1,7 @@
 """Abstract base class for candidate generation recommendation models."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Sequence, Set
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 import pandas as pd
 
 
@@ -86,6 +86,19 @@ class BaseCandidateGenerator(ABC):
         """
         pass
 
+    def recommend_with_scores(
+        self,
+        user_idx: int,
+        k: int = 10,
+        exclude_seen: bool = True,
+    ) -> List[Tuple[int, float]]:
+        """Generate top-K recommended movie indices with scores for a single user.
+
+        Default implementation falls back to recommend() with pseudo-scores (descending ranks).
+        """
+        item_ids = self.recommend(user_idx, k=k, exclude_seen=exclude_seen)
+        return [(item_id, float(len(item_ids) - rank)) for rank, item_id in enumerate(item_ids)]
+
     def recommend_all(
         self,
         user_indices: Sequence[int],
@@ -101,5 +114,17 @@ class BaseCandidateGenerator(ABC):
         """
         return {
             u: self.recommend(u, k=k, exclude_seen=exclude_seen)
+            for u in user_indices
+        }
+
+    def recommend_all_with_scores(
+        self,
+        user_indices: Sequence[int],
+        k: int = 10,
+        exclude_seen: bool = True,
+    ) -> Dict[int, List[Tuple[int, float]]]:
+        """Generate top-K recommendations with scores for a sequence of users."""
+        return {
+            u: self.recommend_with_scores(u, k=k, exclude_seen=exclude_seen)
             for u in user_indices
         }

@@ -1,6 +1,6 @@
 """ItemKNN candidate recommendation model with sparse cosine similarity."""
 
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -131,6 +131,23 @@ class ItemKNNRecommender(BaseCandidateGenerator):
         ranked = np.argsort(-scores, kind="stable")
         return [int(x) for x in ranked[:k]]
 
+    def recommend_with_scores(
+        self,
+        user_idx: int,
+        k: int = 10,
+        exclude_seen: bool = True,
+    ) -> List[Tuple[int, float]]:
+        scores = self._score_user(user_idx)
+
+        if exclude_seen:
+            seen = self.get_user_seen(user_idx)
+            if seen:
+                scores[list(seen)] = -np.inf
+
+        ranked = np.argsort(-scores, kind="stable")
+        top_k = ranked[:k]
+        return [(int(item_id), float(scores[item_id])) for item_id in top_k]
+
     def recommend_all(
         self,
         user_indices: Sequence[int],
@@ -172,5 +189,46 @@ class ItemKNNRecommender(BaseCandidateGenerator):
             for u in batch_users:
                 if u not in results:
                     results[u] = self.recommend(u, k=k, exclude_seen=exclude_seen)
+
+        return results
+
+    def recommend_all_with_scores(
+        self,
+        user_indices: Sequence[int],
+        k: int = 10,
+        exclude_seen: bool = True,
+        batch_size: int = 1000,
+    ) -> Dict[int, List[Tuple[int, float]]]:
+        if not self.is_fitted or self.X_train is None or self.W_sparse is None:
+            raise RuntimeError(f"{self.name} must be fitted before calling recommend_all_with_scores.")
+
+        user_list = list(user_indices)
+        results: Dict[int, List[Tuple[int, float]]] = {}
+
+        for start_idx in range(0, len(user_list), batch_size):
+            batch_users = user_list[start_idx : start_idx + batch_size]
+            batch_rows = [u for u in batch_users if u < self.num_users]
+
+            if not batch_rows:
+                for u in batch_users:
+                    results[u] = [(item, 0.0) for item in range(k)]
+                continue
+
+            sub_X = self.X_train[batch_rows, :]
+            sub_scores = (sub_X @ self.W_sparse.T).toarray()
+
+            for i, u in enumerate(batch_rows):
+                if exclude_seen:
+                    seen = self.get_user_seen(u)
+                    if seen:
+                        sub_scores[i, list(seen)] = -np.inf
+
+                ranked = np.argsort(-sub_scores[i], kind="stable")
+                top_k = ranked[:k]
+                results[u] = [(int(item_id), float(sub_scores[i, item_id])) for item_id in top_k]
+
+            for u in batch_users:
+                if u not in results:
+                    results[u] = self.recommend_with_scores(u, k=k, exclude_seen=exclude_seen)
 
         return results
