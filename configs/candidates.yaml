@@ -1,0 +1,26 @@
+# Configuration for Phase 2A Candidate Recommendation Baselines
+
+paths:
+  train_split: "data/processed/ml-1m/splits/train.parquet"
+  val_split: "data/processed/ml-1m/splits/val.parquet"
+  user_id_map: "data/processed/ml-1m/id_maps/user_id_map.parquet"
+  movie_id_map: "data/processed/ml-1m/id_maps/movie_id_map.parquet"
+  catalog_movies: "data/processed/ml-1m/movies.parquet"
+
+data:
+  positive_threshold: 4.0
+
+models:
+  popularity:
+    name: "Popularity"
+
+  item_knn:
+    name: "ItemKNN"
+    k_neighbors: 40
+    similarity: "cosine"
+    shrinkage: 0.0
+
+evaluation:
+  cutoffs: [10, 20]
+  exclude_seen: true
+  seed: 42

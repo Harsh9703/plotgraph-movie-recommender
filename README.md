@@ -33,7 +33,7 @@ pip install -e ".[test]"
 
 Core dependencies for Phase 1 are kept minimal:
 - `pyyaml` (configuration)
-- `pandas`, `numpy`, `pyarrow` (data manipulation and parquet serialization)
+- `pandas`, `numpy`, `scipy`, `pyarrow` (data manipulation, sparse matrices, and parquet serialization)
 - `pytest` (test execution)
 
 ---
@@ -82,3 +82,38 @@ The test suite covers:
 3. `tests/test_splitter.py`: Chronological ordering, split proportions, zero temporal leakage verification, and small-history rounding.
 4. `tests/test_loader.py`: Delimiter parsing, encoding (`latin-1`), and positive interaction labeling ($r \ge 4.0$).
 5. `tests/test_ml1m_integration.py`: End-to-end integrity checks on real MovieLens-1M data (if downloaded).
+6. `tests/test_popularity.py`: Popularity baseline positive training counts, exclusion of seen positive items, and deterministic tie-breaking.
+7. `tests/test_item_knn.py`: ItemKNN sparse matrix cosine similarity, cluster-based personalization, ignoring non-positives, and deterministic top-K selection.
+8. `tests/test_candidate_eval.py`: Evaluation harness validation relevance ($r \ge 4$), training history isolation, and empty user handling.
+
+---
+
+## Phase 2A: Candidate Recommendation Baselines
+
+Phase 2A implements the first two candidate-generation recommendation models evaluated on the validation split:
+- **`BaseCandidateGenerator`**: Reusable recommender interface enforcing strict positive-only training (`positive == 1`, $r \ge 4.0$).
+- **`PopularityRecommender`**: Non-personalized baseline ranking unseen movies by positive interaction frequency in the training split.
+- **`ItemKNNRecommender`**: Collaborative-filtering model utilizing sparse cosine item-item similarity with top-$K$ neighborhood pruning ($K=40$).
+- **Validation Evaluation Harness**: Full-catalog ranking evaluation across all unseen catalog movies for each validation user against held-out positive items ($r \ge 4.0$), strictly isolating the TEST split.
+
+### Running Phase 2A Baselines
+
+```bash
+python scripts/run_phase2a_baselines.py --config configs/candidates.yaml
+```
+
+### Benchmark Validation Results (Full-Catalog Ranking, K=10 & 20)
+
+Evaluated across **5,805 validation users** who have at least one positive interaction in the validation split (out of 6,040 total users, 96.11% coverage):
+
+| Model | NDCG@10 | Recall@10 | HR@10 | MRR@10 | NDCG@20 | Recall@20 | HR@20 | MRR@20 | Train Time | Eval Time |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Popularity** | 0.0490 | 0.0432 | 0.2305 | 0.0954 | 0.0617 | 0.0857 | 0.3611 | 0.1044 | ~0.13s | ~0.19s |
+| **ItemKNN** ($K=40$) | **0.0679** | **0.0772** | **0.3077** | **0.1161** | **0.0883** | **0.1383** | **0.4711** | **0.1275** | ~2.04s | ~1.55s |
+
+**ItemKNN relative lift over Popularity**:
+- **NDCG@10**: **+38.72%**
+- **Recall@10**: **+78.98%**
+- **HR@10**: **+33.49%**
+- **MRR@10**: **+21.70%**
+
