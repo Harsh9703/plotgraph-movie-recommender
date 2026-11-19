@@ -1,0 +1,46 @@
+# Knowledge Graph (KG-M) Configuration for Phase 3B
+
+paths:
+  # Input Phase 3A verified unified metadata artifact
+  input_metadata_parquet: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
+
+  # Output KG-M Turtle serialization and validation report
+  output_dir: "data/processed/ml-1m/graphs"
+  output_graph_ttl: "data/processed/ml-1m/graphs/kg_m.ttl"
+  validation_report_json: "data/processed/ml-1m/graphs/kg_m_validation.json"
+
+namespaces:
+  ontology: "https://plotgraph.org/ontology/"
+  resource: "https://plotgraph.org/resource/"
+  prefixes:
+    pgo: "https://plotgraph.org/ontology/"
+    pgr: "https://plotgraph.org/resource/"
+    rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    rdfs: "http://www.w3.org/2000/01/rdf-schema#"
+    xsd: "http://www.w3.org/2001/XMLSchema#"
+
+classes:
+  movie: "Movie"
+  genre: "Genre"
+  person: "Person"
+  keyword: "Keyword"
+  collection: "Collection"
+  release_decade: "ReleaseDecade"
+
+predicates:
+  has_genre: "hasGenre"
+  directed_by: "directedBy"
+  stars_actor: "starsActor"
+  has_keyword: "hasKeyword"
+  in_collection: "inCollection"
+  release_decade: "releaseDecade"
+  title: "title"
+  movie_lens_id: "movieLensId"
+  internal_movie_index: "internalMovieIndex"
+  tmdb_id: "tmdbId"
+  tmdb_title: "tmdbTitle"
+  release_date: "releaseDate"
+
+settings:
+  deterministic: true
+  top_k_actors: 5

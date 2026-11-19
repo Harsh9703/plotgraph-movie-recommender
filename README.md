@@ -90,6 +90,7 @@ The test suite covers:
 11. `tests/test_ease.py`: EASE closed-form Gram matrix inversion, zero diagonal assertion, and personalization.
 12. `tests/test_phase2b_selection.py`: Validation grid search, model selection by validation NDCG@10, Top-100 candidate pool export, and Recall@100 evaluation.
 13. `tests/test_tmdb_metadata.py`: Safe parsing (`ast.literal_eval`), malformed non-numeric ID rejection, deterministic deduplication, director and top-5 actor extraction, release decade derivation, zero catalog dropping, and end-to-end integration.
+14. `tests/test_kg_m.py`: Deterministic entity/movie URI canonicalization, Unicode handling, synthetic graph construction, missing metadata handling, Turtle round-trip preservation, SPARQL query engine helpers, and real KG-M graph validation.
 
 ---
 
@@ -195,6 +196,117 @@ Output artifacts:
 | **Top Actors Present ($\ge 1$)** | 3,768 (97.04%) | 3,626 (97.84%) | **1,838 (99.35%)** |
 | **Keywords Present ($\ge 1$)** | 3,342 (86.07%) | 3,262 (88.02%) | **1,796 (97.08%)** |
 | **Belongs to Collection** | 669 (17.23%) | 665 (17.94%) | 444 (24.00%) |
+
+---
+
+## Phase 3B: Metadata Knowledge Graph (KG-M) & SPARQL Query Engine
+
+Phase 3B constructs the metadata Knowledge Graph (**KG-M**) using RDFlib from the verified Phase 3A unified metadata table (`movies_with_tmdb.parquet`), serializes it deterministically as RDF/Turtle (`kg_m.ttl`), validates graph integrity and ID recoverability, and provides a reusable SPARQL query engine.
+
+### Knowledge Graph Architecture
+
+- **Namespaces**:
+  - Ontology Namespace: `@prefix pgo: <https://plotgraph.org/ontology/> .`
+  - Resource Namespace: `@prefix pgr: <https://plotgraph.org/resource/> .`
+- **Core Entity Classes**:
+  - `pgo:Movie`: 3,883 movies preserving 100% of the MovieLens catalog.
+  - `pgo:Person`: 10,417 distinct directors and top-5 billed actors.
+  - `pgo:Genre`: 20 standardized TMDB genres.
+  - `pgo:Keyword`: 7,815 distinct plot keywords.
+  - `pgo:Collection`: 364 movie franchise/collection entities.
+  - `pgo:ReleaseDecade`: 11 cinema release decades.
+- **Relational Predicates**:
+  - `pgo:hasGenre`: Connects Movie $\to$ Genre.
+  - `pgo:directedBy`: Connects Movie $\to$ Person (director).
+  - `pgo:starsActor`: Connects Movie $\to$ Person (top-5 billed actors).
+  - `pgo:hasKeyword`: Connects Movie $\to$ Keyword.
+  - `pgo:inCollection`: Connects Movie $\to$ Collection.
+  - `pgo:releaseDecade`: Connects Movie $\to$ ReleaseDecade.
+- **Literal Properties**:
+  - `pgo:title`: Clean title string.
+  - `pgo:movieLensId`: Original MovieLens ID (`xsd:integer`).
+  - `pgo:internalMovieIndex`: Consecutive internal index (`xsd:integer`).
+  - `pgo:tmdbId`: TMDB ID (`xsd:integer`, where available).
+  - `pgo:tmdbTitle`: Clean TMDB title string.
+  - `pgo:releaseDate`: Release date string (`YYYY-MM-DD`).
+  - `rdfs:label`: Human-readable entity label for every resource.
+
+### Deterministic URI Canonicalization Strategy
+
+- **Movie URIs**:
+  - Unique TMDB ID $\to$ `pgr:movie_tmdb_{tmdb_id}` (e.g. `pgr:movie_tmdb_862` for *Toy Story*).
+  - Rare duplicate TMDB ID $\to$ `pgr:movie_tmdb_{tmdb_id}_ml_{movie_id}` (disambiguates distinct movies sharing TMDB IDs in Kaggle source data, avoiding silent entity merging).
+  - Unmapped MovieLens movies (55 movies) $\to$ `pgr:movie_ml_{movie_id}` (catalog identity preserved with zero hallucinated metadata edges).
+- **Metadata Entity URIs**:
+  - Normalized with Unicode NFKC, lowercased, and converted into URL-safe slugs with alphanumeric characters and underscores (`pgr:{entity_type}_{slug}`).
+  - Each entity receives exactly one canonical `rdfs:label` and `rdf:type` definition.
+
+### Running Phase 3B Pipeline
+
+```bash
+python scripts/run_phase3b_kg_m.py --config configs/kg.yaml
+```
+
+Output artifacts (Git-ignored under `data/processed/`):
+- `data/processed/ml-1m/graphs/kg_m.ttl` (4.43 MB, 129,658 triples)
+- `data/processed/ml-1m/graphs/kg_m_validation.json`
+
+### KG-M Graph Statistics & Validation
+
+| Entity / Triple Metric | Count |
+|:---|:---:|
+| **Total Graph Triples** | **129,658** |
+| `pgo:Movie` Entities | 3,883 |
+| `pgo:Person` Entities (Directors & Actors) | 10,417 |
+| `pgo:Genre` Entities | 20 |
+| `pgo:Keyword` Entities | 7,815 |
+| `pgo:Collection` Entities | 364 |
+| `pgo:ReleaseDecade` Entities | 11 |
+| **Total Named Entities** | **22,510** |
+| `pgo:hasKeyword` Triples | 25,591 |
+| `rdfs:label` Triples | 22,510 |
+| `rdf:type` Triples | 22,510 |
+| `pgo:starsActor` Triples | 18,502 |
+| `pgo:hasGenre` Triples | 9,120 |
+| `pgo:title` / `movieLensId` / `internalMovieIndex` Triples | 3,883 each |
+| `pgo:tmdbId` / `tmdbTitle` Triples | 3,828 each |
+| `pgo:releaseDecade` / `releaseDate` Triples | 3,824 each |
+| `pgo:directedBy` Triples | 3,803 |
+| `pgo:inCollection` Triples | 669 |
+| **All MovieLens IDs Recoverable** | **Yes (3,883 / 3,883, 100%)** |
+| **All Internal Indices Recoverable** | **Yes (3,883 / 3,883, 100%)** |
+| **Zero Bogus / NaN Placeholder Resources** | **Confirmed (0 bogus URIs, 0 bogus labels)** |
+| **Turtle Syntax Round-Trip Preservation** | **Confirmed (129,658 / 129,658 triples)** |
+
+### SPARQL Query Utilities (`KGMQueryEngine`)
+
+The reusable `KGMQueryEngine` (`src/knowledge_graph/query_engine.py`) provides helper methods for downstream reranking features and explanation paths:
+
+```python
+from src.knowledge_graph import KGMQueryEngine
+
+engine = KGMQueryEngine("data/processed/ml-1m/graphs/kg_m.ttl")
+
+# 1. Full movie metadata retrieval
+meta = engine.get_movie_metadata(movie_id=1)
+
+# 2. Shared director, actors, collection, genres, or keywords
+same_dir = engine.find_movies_sharing_director(movie_id=1)
+same_actors = engine.find_movies_sharing_actor(movie_id=1)
+same_coll = engine.find_movies_in_same_collection(movie_id=1)
+same_genres = engine.find_movies_sharing_genre(movie_id=1)
+same_kws = engine.find_movies_sharing_keyword(movie_id=1)
+
+# 3. Multi-hop 2-hop path query connecting two movies
+paths = engine.find_paths_between_movies(movie_a=1, movie_b=2355)
+# Returns:
+# - 'Toy Story (1995)' --(directedBy)--> [Person: John Lasseter] <--(directedBy)-- 'A Bug's Life (1998)'
+# - 'Toy Story (1995)' --(hasGenre)--> [Genre: Animation] <--(hasGenre)-- 'A Bug's Life (1998)'
+# - 'Toy Story (1995)' --(hasGenre)--> [Genre: Comedy] <--(hasGenre)-- 'A Bug's Life (1998)'
+# - 'Toy Story (1995)' --(hasGenre)--> [Genre: Family] <--(hasGenre)-- 'A Bug's Life (1998)'
+# - 'Toy Story (1995)' --(releaseDecade)--> [ReleaseDecade: 1990s] <--(releaseDecade)-- 'A Bug's Life (1998)'
+```
+
 
 
 
