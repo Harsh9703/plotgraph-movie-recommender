@@ -1,0 +1,38 @@
+# Knowledge Graph LLM Extraction Contract Configuration (Phase 3C)
+
+paths:
+  # Input Phase 3A verified unified metadata artifact
+  input_metadata_parquet: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
+
+  # Sample output for future LLM extraction testing
+  output_dir: "data/processed/ml-1m/kg_l"
+  sample_movies_parquet: "data/processed/ml-1m/kg_l/sample_movies.parquet"
+  sample_summary_json: "data/processed/ml-1m/kg_l/sample_summary.json"
+
+ontology:
+  semantic_relations:
+    - hasTheme
+    - hasSetting
+    - hasNarrativeDevice
+    - hasProtagonistType
+    - basedOn
+  emotion_relation: evokesEmotion
+  plutchik_emotions:
+    - joy
+    - trust
+    - fear
+    - surprise
+    - sadness
+    - disgust
+    - anger
+    - anticipation
+  emotion_edge_threshold: 0.5
+
+llm:
+  model_id: "Qwen/Qwen2.5-7B-Instruct"
+  prompt_version: "v1.0.0"
+  schema_version: "v1.0.0"
+
+sampling:
+  sample_size: 30
+  random_seed: 42

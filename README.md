@@ -91,6 +91,7 @@ The test suite covers:
 12. `tests/test_phase2b_selection.py`: Validation grid search, model selection by validation NDCG@10, Top-100 candidate pool export, and Recall@100 evaluation.
 13. `tests/test_tmdb_metadata.py`: Safe parsing (`ast.literal_eval`), malformed non-numeric ID rejection, deterministic deduplication, director and top-5 actor extraction, release decade derivation, zero catalog dropping, and end-to-end integration.
 14. `tests/test_kg_m.py`: Deterministic entity/movie URI canonicalization, Unicode handling, synthetic graph construction, missing metadata handling, Turtle round-trip preservation, SPARQL query engine helpers, and real KG-M graph validation.
+15. `tests/test_kg_l_contract.py`: Fixed ontology relations (6), exact 8 Plutchik emotions, strict Pydantic extraction schema, duplicate/blank entity handling, markdown-fenced JSON extraction/recovery, deterministic prompt templates, and sample export validity.
 
 ---
 
@@ -306,6 +307,62 @@ paths = engine.find_paths_between_movies(movie_a=1, movie_b=2355)
 # - 'Toy Story (1995)' --(hasGenre)--> [Genre: Family] <--(hasGenre)-- 'A Bug's Life (1998)'
 # - 'Toy Story (1995)' --(releaseDecade)--> [ReleaseDecade: 1990s] <--(releaseDecade)-- 'A Bug's Life (1998)'
 ```
+
+---
+
+## Phase 3C: KG-L LLM Plot Extraction Contract & Sample Preparation
+
+Phase 3C defines the formal contract, ontology constraints, strict structured extraction schema, prompt templates, validation/canonicalization infrastructure, and sample export workflow for **KG-L** (the LLM-enriched plot knowledge graph), in preparation for future Qwen2.5-7B-Instruct extraction.
+
+> **Research Integrity & Compute Note**: No LLM inference or GPU execution is performed in Phase 3C. The goal of this phase is to establish a rigorous, auditable schema contract to prevent model hallucination, arbitrary relation generation, or malformed outputs before allocating GPU resources.
+
+### 1. KG-M vs KG-L
+
+- **KG-M (Metadata Knowledge Graph, Phase 3B)**: Grounded in verified structured TMDB metadata (`directedBy`, `starsActor`, `hasGenre`, `inCollection`, `hasKeyword`, `releaseDecade`).
+- **KG-L (Plot Knowledge Graph, Phases 3C & 4)**: Enriched through LLM narrative extraction from movie plot overviews using a fixed semantic ontology and continuous Plutchik emotion vectors.
+
+### 2. Fixed KG-L Ontology & Relations
+
+The extraction schema permits exactly **6 relation types**:
+1. `hasTheme`: Abstract recurring ideas or subjects central to the plot (e.g. `"friendship"`, `"identity"`, `"redemption"`).
+2. `hasSetting`: Key locations, environments, historical eras, or worlds (e.g. `"gotham city"`, `"victorian london"`, `"suburbia"`).
+3. `hasNarrativeDevice`: Storytelling mechanisms evident in the overview (e.g. `"time travel"`, `"unreliable narrator"`, `"mistaken identity"`).
+4. `hasProtagonistType`: Character archetypes or roles (e.g. `"detective"`, `"sentient toy"`, `"high school student"`).
+5. `basedOn`: Explicit source material stated in the overview (e.g. `"novel"`, `"true story"`, `"comic book"`).
+6. `evokesEmotion`: Plutchik 8-emotion intensity scores (edges added in future KG-L only when intensity > 0.5).
+
+### 3. Plutchik Eight Emotion Dimensions
+
+Every movie plot overview is evaluated on the exact eight Plutchik basic emotions with continuous intensities in $[0.0, 1.0]$:
+- `joy`
+- `trust`
+- `fear`
+- `surprise`
+- `sadness`
+- `disgust`
+- `anger`
+- `anticipation`
+
+All 8 continuous raw scores are preserved in extraction artifacts for downstream user emotional profiling and recommendation reranking.
+
+### 4. Strict Schema & Grounding Rules
+
+- **Schema Enforcement (`Pydantic`)**: Unknown fields or extra keys are rejected with `extra="forbid"`.
+- **Entity Validation**: Entities must be strings; blanks/empty strings are discarded; duplicate entities are normalized and deduplicated deterministically.
+- **Emotion Constraints**: All 8 emotions must be present; values must be numeric in $[0.0, 1.0]$; unknown emotion names are strictly rejected.
+- **Strict Grounding**: The extraction prompt instructs the model to rely solely on explicit facts in the overview, forbids outside knowledge, and requires empty arrays `[]` when evidence is absent.
+- **Robust Parsing & Recovery**: The parser accepts raw JSON, extracts markdown-fenced ```json blocks, and strips extraneous prose without masking structural schema errors.
+
+### 5. Running the Phase 3C Preparation Script
+
+```bash
+python scripts/run_phase3c_kg_l_prep.py --config configs/kg_l.yaml
+```
+
+Output artifacts (Git-ignored under `data/processed/ml-1m/kg_l/`):
+- `data/processed/ml-1m/kg_l/sample_movies.parquet` (30 deterministic sample movies)
+- `data/processed/ml-1m/kg_l/sample_summary.json` (Traceability summary with IDs, decades, and overview lengths)
+
 
 
 
