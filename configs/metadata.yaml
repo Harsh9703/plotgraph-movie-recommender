@@ -1,0 +1,22 @@
+# Metadata pipeline configuration for Phase 3A (TMDB / The Movies Dataset Ingestion)
+
+paths:
+  # Raw data inputs from Kaggle (The Movies Dataset)
+  the_movies_dataset_dir: "data/raw/the-movies-dataset"
+  movies_metadata_csv: "data/raw/the-movies-dataset/movies_metadata.csv"
+  credits_csv: "data/raw/the-movies-dataset/credits.csv"
+  keywords_csv: "data/raw/the-movies-dataset/keywords.csv"
+  links_csv: "data/raw/the-movies-dataset/links.csv"
+
+  # Processed MovieLens-1M inputs
+  ml1m_movies_parquet: "data/processed/ml-1m/movies.parquet"
+  splits_dir: "data/processed/ml-1m/splits"
+  top100_candidates_parquet: "data/processed/ml-1m/candidates/top100_candidates.parquet"
+
+  # Processed outputs
+  output_dir: "data/processed/ml-1m/metadata"
+  output_parquet: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
+  coverage_report_json: "data/processed/ml-1m/metadata/coverage_report.json"
+
+parameters:
+  top_k_actors: 5

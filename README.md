@@ -89,6 +89,7 @@ The test suite covers:
 10. `tests/test_bpr.py`: BPR matrix factorization fitting, scoring, and deterministic recommendations.
 11. `tests/test_ease.py`: EASE closed-form Gram matrix inversion, zero diagonal assertion, and personalization.
 12. `tests/test_phase2b_selection.py`: Validation grid search, model selection by validation NDCG@10, Top-100 candidate pool export, and Recall@100 evaluation.
+13. `tests/test_tmdb_metadata.py`: Safe parsing (`ast.literal_eval`), malformed non-numeric ID rejection, deterministic deduplication, director and top-5 actor extraction, release decade derivation, zero catalog dropping, and end-to-end integration.
 
 ---
 
@@ -155,5 +156,45 @@ python scripts/run_phase2b_models.py --config configs/candidates.yaml
 - **Candidate Pool**: 604,000 candidate items exported across all 6,040 MovieLens-1M users (100 candidates per user).
 - **Validation Recall@100**: **0.4421** (44.21% of held-out future validation positives are present in the candidate pool).
 - **Data Leakage Check**: 0 seen positive training items leaked into the candidate pool.
+
+---
+
+## Phase 3A: TMDB Metadata Ingestion, Cleaning & MovieLens Linking
+
+Phase 3A ingests and defensively cleans metadata from [The Movies Dataset](https://www.kaggle.com/datasets/rounakbanik/the-movies-dataset) (placed at `data/raw/the-movies-dataset/`), safely linking it to MovieLens-1M movies:
+- **Defensive Cleaning**: Drops corrupted rows with shifted dates in ID columns (e.g. rows with non-numeric IDs), resolves duplicate TMDB entries deterministically by vote count and overview completeness.
+- **Safe Evaluation**: Strictly avoids unsafe `eval()`; uses `ast.literal_eval` with robust exception handling across all nested JSON/literal fields.
+- **Explicit ID Linking**: Uses `links.csv` (`movieId` $\leftrightarrow$ `tmdbId`) exclusively. Zero ambiguous title fuzzy matching.
+- **Catalog Preservation**: Never drops MovieLens movies that lack TMDB metadata. All 3,883 movies are retained in the unified catalog with explicit boolean flags (`has_tmdb_link`, `has_overview`, `has_credits`, `has_keywords`) and nullable fields, preserving exact `movie_idx` and `movie_id` mappings.
+- **Entity & Feature Extraction**:
+  - Primary director extracted from `crew`.
+  - Top-5 billed actors extracted from `cast` sorted by billing order.
+  - Clean keyword string lists extracted from `keywords`.
+  - Franchise/collection names extracted from `belongs_to_collection`.
+  - Cinema release decade derived (e.g., `1995` $\to$ `1990s`).
+
+### Running Phase 3A Pipeline
+
+```bash
+python scripts/run_phase3a_metadata.py --config configs/metadata.yaml
+```
+
+Output artifacts:
+- `data/processed/ml-1m/metadata/movies_with_tmdb.parquet` (3,883 rows, 21 columns)
+- `data/processed/ml-1m/metadata/coverage_report.json`
+
+### Metadata Coverage Across Catalog, Interactions & Candidates
+
+| Metric | All Catalog Movies (N=3,883) | Rated Movies (N=3,706) | Top-100 Candidates (N=1,850) |
+|:---|:---:|:---:|:---:|
+| **Linked to TMDB (`links.csv`)** | 3,828 (98.58%) | 3,667 (98.95%) | **1,843 (99.62%)** |
+| **Matching TMDB Metadata** | 3,828 (98.58%) | 3,667 (98.95%) | **1,843 (99.62%)** |
+| **Non-Empty Plot Overview** | 3,810 (98.12%) | 3,657 (98.68%) | **1,842 (99.57%)** |
+| **Credits Available (cast/crew)** | 3,812 (98.17%) | 3,660 (98.76%) | **1,843 (99.62%)** |
+| **Director Present** | 3,803 (97.94%) | 3,653 (98.57%) | **1,843 (99.62%)** |
+| **Top Actors Present ($\ge 1$)** | 3,768 (97.04%) | 3,626 (97.84%) | **1,838 (99.35%)** |
+| **Keywords Present ($\ge 1$)** | 3,342 (86.07%) | 3,262 (88.02%) | **1,796 (97.08%)** |
+| **Belongs to Collection** | 669 (17.23%) | 665 (17.94%) | 444 (24.00%) |
+
 
 
