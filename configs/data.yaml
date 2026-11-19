@@ -1,0 +1,26 @@
+# Data pipeline configuration for Phase 1 (MovieLens-1M Foundation)
+
+paths:
+  raw_dir: "data/raw"
+  ml1m_raw_dir: "data/raw/ml-1m"
+  processed_dir: "data/processed/ml-1m"
+  splits_dir: "data/processed/ml-1m/splits"
+  id_maps_dir: "data/processed/ml-1m/id_maps"
+
+ml1m:
+  url: "https://files.grouplens.org/datasets/movielens/ml-1m.zip"
+  ratings_file: "ratings.dat"
+  movies_file: "movies.dat"
+  users_file: "users.dat"
+  encoding: "latin-1"
+
+splitting:
+  strategy: "chronological_per_user"
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  positive_threshold: 4.0 # Ratings >= 4.0 are positive interactions
+
+evaluation:
+  cutoffs: [10, 20, 100]
+  seed: 42
