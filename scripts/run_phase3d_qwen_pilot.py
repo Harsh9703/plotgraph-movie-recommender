@@ -51,7 +51,14 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=None,
-        help="Output directory for pilot artifacts (default: data/processed/ml-1m/kg_l/pilot).",
+        help="Output directory for pilot artifacts (default: resolved from prompt version, e.g. pilot_v1_1 for v1.1.0).",
+    )
+    parser.add_argument(
+        "--prompt-version",
+        type=str,
+        default=None,
+        choices=["v1.0.0", "v1.1.0"],
+        help="Prompt template version ('v1.0.0' or 'v1.1.0', default: from config).",
     )
     parser.add_argument(
         "--max-movies",
@@ -71,6 +78,7 @@ def main() -> int:
             backend_type=args.backend,
             input_path=args.input_path,
             output_dir=args.output_dir,
+            prompt_version=args.prompt_version,
             max_movies=args.max_movies,
         )
     except Exception as err:
@@ -78,12 +86,18 @@ def main() -> int:
         return 1
 
     # Pretty-print final summary table
-    out_dir = args.output_dir or "data/processed/ml-1m/kg_l/pilot"
+    out_dir = args.output_dir or (
+        "data/processed/ml-1m/kg_l/pilot_v1_1"
+        if summary.get("prompt_version") == "v1.1.0"
+        else "data/processed/ml-1m/kg_l/pilot"
+    )
     print("\n" + "=" * 65)
     print("           PHASE 3D QWEN PILOT RUN SUMMARY")
     print("=" * 65)
     print(f"Backend                     : {summary.get('backend')}")
     print(f"Model ID                    : {summary.get('model_id')}")
+    print(f"Prompt Version              : {summary.get('prompt_version')}")
+    print(f"Schema Version              : {summary.get('schema_version')}")
     print(f"Total Movies in Sample      : {summary.get('total_movies_in_sample')}")
     print(f"Successfully Validated      : {summary.get('successfully_validated_count')}")
     print(f"Failed Extractions          : {summary.get('failed_count')}")

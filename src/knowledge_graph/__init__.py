@@ -40,6 +40,8 @@ from .kg_l_contract import (
     KGL_ALL_RELATIONS,
     PLUTCHIK_EMOTIONS,
     DEFAULT_EMOTION_EDGE_THRESHOLD,
+    PROMPT_VERSION_V1_0_0,
+    PROMPT_VERSION_V1_1_0,
     DEFAULT_PROMPT_VERSION,
     DEFAULT_SCHEMA_VERSION,
     DEFAULT_MODEL_ID,
@@ -67,6 +69,12 @@ from .qwen_pilot import (
     load_failure_indices,
     export_pilot_review_csv,
     run_qwen_pilot,
+)
+from .pilot_comparison import (
+    load_pilot_review_df,
+    compute_pilot_metrics,
+    compare_pilot_runs,
+    format_comparison_table,
 )
 
 __all__ = [
@@ -105,6 +113,8 @@ __all__ = [
     "KGL_ALL_RELATIONS",
     "PLUTCHIK_EMOTIONS",
     "DEFAULT_EMOTION_EDGE_THRESHOLD",
+    "PROMPT_VERSION_V1_0_0",
+    "PROMPT_VERSION_V1_1_0",
     "DEFAULT_PROMPT_VERSION",
     "DEFAULT_SCHEMA_VERSION",
     "DEFAULT_MODEL_ID",
@@ -130,4 +140,8 @@ __all__ = [
     "load_failure_indices",
     "export_pilot_review_csv",
     "run_qwen_pilot",
+    "load_pilot_review_df",
+    "compute_pilot_metrics",
+    "compare_pilot_runs",
+    "format_comparison_table",
 ]

@@ -288,7 +288,7 @@ def test_parse_and_validate_extraction_end_to_end():
 
 
 def test_prompt_formatting():
-    """Verify system and user prompt generation and formatting."""
+    """Verify system and user prompt generation and formatting for legacy v1.0.0."""
     sys_prompt, user_prompt = format_extraction_prompt(
         title="Inception (2010)",
         overview="A thief who steals corporate secrets through the use of dream-sharing technology.",
@@ -313,6 +313,80 @@ def test_prompt_formatting():
     assert "TMDB ID: 27205" in user_prompt
     assert "dream-sharing technology" in user_prompt
     assert '"themes": ["<theme1>", "<theme2>"]' in user_prompt
+
+
+def test_prompt_version_v1_1_formatting():
+    """Verify refined v1.1.0 prompt formatting, calibration, exclusions, and grounding."""
+    from src.knowledge_graph.kg_l_contract import (
+        DEFAULT_PROMPT_VERSION,
+        DEFAULT_SCHEMA_VERSION,
+        PROMPT_VERSION_V1_0_0,
+        PROMPT_VERSION_V1_1_0,
+    )
+
+    # Verify version constants
+    assert DEFAULT_PROMPT_VERSION == "v1.1.0"
+    assert PROMPT_VERSION_V1_1_0 == "v1.1.0"
+    assert PROMPT_VERSION_V1_0_0 == "v1.0.0"
+    assert DEFAULT_SCHEMA_VERSION == "v1.0.0"
+
+    # Default call should format with v1.1.0
+    sys_prompt, user_prompt = format_extraction_prompt(
+        title="Batman Forever (1995)",
+        overview="Batman must battle Two-Face and The Riddler with the help of a circus acrobat who becomes Robin.",
+        movie_id=153,
+        movie_idx=151,
+        tmdb_id=414,
+        prompt_version="v1.1.0",
+    )
+
+    # 1. Calibration guidance
+    assert "0.0 = essentially absent / no meaningful evidence" in sys_prompt
+    assert "0.1–0.3 = weak" in sys_prompt
+    assert "0.4–0.6 = moderate" in sys_prompt
+    assert "0.7–0.8 = strong" in sys_prompt
+    assert "0.9–1.0 = dominant or extremely intense" in sys_prompt
+
+    # 2. Emotion interpretation rules
+    assert "Do NOT require literal emotion words in the overview" in sys_prompt
+    assert "Infer likely audience emotions from plot events that are explicitly described" in sys_prompt
+    assert "Zero means essentially no evidence that the narrative would evoke that emotion" in sys_prompt
+    assert "Multiple emotions may be nonzero simultaneously" in sys_prompt
+    assert "Do not artificially force an emotion above 0.5 merely to create a KG edge" in sys_prompt
+    assert "Scores must reflect evidence in the supplied overview" in sys_prompt
+
+    # 3. Emotion evidence examples
+    assert "threat, danger, pursuit, horror → fear" in sys_prompt
+    assert "death, grief, separation, loss → sadness" in sys_prompt
+    assert "betrayal, injustice, violent conflict → anger and/or disgust" in sys_prompt
+    assert "friendship, romance, reunion, humor, success → joy and/or trust" in sys_prompt
+    assert "uncertainty, revelations, escalating conflict → surprise and/or anticipation" in sys_prompt
+    assert "these are illustrative examples, not mandatory mappings" in sys_prompt
+
+    # 4. Narrative device definition and exclusions
+    assert "time travel, mistaken identity, unreliable narrator, nonlinear narrative, flashback, parallel timelines, frame narrative" in sys_prompt
+    assert "It must NOT simply be: an ordinary plot event, a theme, a protagonist type, a conflict, or a character trait" in sys_prompt
+    assert "If no genuine narrative device is clearly supported, output []" in sys_prompt
+    assert "An empty array [] is preferable to inventing a weak narrative device" in sys_prompt
+
+    # 5. Protagonist types grounding
+    assert "Extract character roles or archetypes directly supported by the overview" in sys_prompt
+    assert "Do NOT infer occupation, age, identity, or franchise knowledge from outside knowledge" in sys_prompt
+    assert "Prefer reusable concise roles (e.g. soldier, student, parent, criminal, scientist, journalist, athlete) ONLY when the overview explicitly supports them" in sys_prompt
+    assert "An empty array [] is preferable to an unsupported role" in sys_prompt
+
+    # 6. Strict Grounding
+    assert "Rely ONLY on facts, concepts, and narrative events explicitly stated or directly described" in sys_prompt
+    assert "Do NOT use outside knowledge about the movie, franchise, source material, characters, actors, or production history" in sys_prompt
+
+    # 7. User prompt formatting
+    assert "Title: Batman Forever (1995)" in user_prompt
+    assert "MovieLens ID: 153" in user_prompt
+    assert "Movie Index: 151" in user_prompt
+    assert "TMDB ID: 414" in user_prompt
+    assert "circus acrobat who becomes Robin" in user_prompt
+    assert '"narrative_devices": ["<device_if_present>"]' in user_prompt
+    assert '"protagonist_types": ["<archetype_if_supported>"]' in user_prompt
 
 
 def test_sample_selection_determinism_and_validity():

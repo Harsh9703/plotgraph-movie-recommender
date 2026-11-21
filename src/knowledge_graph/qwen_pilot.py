@@ -154,6 +154,7 @@ class MockQwenBackend(BaseInferenceBackend):
         self,
         failure_modes: Optional[Dict[int, str]] = None,
         model_id: str = DEFAULT_MODEL_ID,
+        prompt_version: str = DEFAULT_PROMPT_VERSION,
     ):
         """Initialize mock backend.
 
@@ -165,8 +166,10 @@ class MockQwenBackend(BaseInferenceBackend):
                 - 'retry_then_succeed': Fails on attempt 1, succeeds on attempt 2.
                 - 'backend_error': Raises an unexpected runtime exception.
             model_id: Model identifier to embed in metadata.
+            prompt_version: Prompt version string to embed in metadata.
         """
         self.model_id = model_id
+        self.prompt_version = prompt_version
         self.failure_modes = failure_modes or {}
         self.call_counts: Dict[int, int] = {}
 
@@ -276,7 +279,7 @@ class MockQwenBackend(BaseInferenceBackend):
             "based_on": ["comic book"] if "batman" in title_lower else [],
             "emotions": emotions,
             "model_id": self.model_id,
-            "prompt_version": DEFAULT_PROMPT_VERSION,
+            "prompt_version": self.prompt_version,
             "schema_version": DEFAULT_SCHEMA_VERSION,
         }
 
@@ -543,6 +546,7 @@ def run_qwen_pilot(
     backend_type: str = "mock",
     input_path: Optional[Union[str, Path]] = None,
     output_dir: Optional[Union[str, Path]] = None,
+    prompt_version: Optional[str] = None,
     max_movies: int = MAX_PILOT_MOVIES,
     mock_failures: Optional[Dict[int, str]] = None,
 ) -> Dict[str, Any]:
@@ -553,6 +557,7 @@ def run_qwen_pilot(
         backend_type: 'mock' for local development or 'vllm' for GPU compute on ASU SOL.
         input_path: Optional override for sample parquet path.
         output_dir: Optional override for output directory.
+        prompt_version: Optional prompt version ('v1.0.0' or 'v1.1.0', defaults to config).
         max_movies: Maximum movies to process (strictly <= 30).
         mock_failures: Optional failure injection dictionary for MockQwenBackend.
 
@@ -571,9 +576,24 @@ def run_qwen_pilot(
     paths_cfg = cfg.get("paths", {})
     llm_cfg = cfg.get("llm", {})
 
-    # Resolve paths
+    # LLM and inference parameters
+    model_id = str(llm_cfg.get("model_id", DEFAULT_MODEL_ID))
+    resolved_prompt_version = str(prompt_version or llm_cfg.get("prompt_version", DEFAULT_PROMPT_VERSION))
+    schema_version = str(llm_cfg.get("schema_version", DEFAULT_SCHEMA_VERSION))
+    temperature = float(llm_cfg.get("temperature", 0.0))
+    max_tokens = int(llm_cfg.get("max_tokens", 1024))
+    tensor_parallel_size = int(llm_cfg.get("tensor_parallel_size", 1))
+    gpu_memory_utilization = float(llm_cfg.get("gpu_memory_utilization", 0.90))
+    max_retries = int(llm_cfg.get("max_retries", 1))
+
+    # Resolve paths (v1.1.0 defaults to pilot_v1_1 so v1.0.0 is not overwritten)
     resolved_input = Path(input_path or paths_cfg.get("sample_movies_parquet", "data/processed/ml-1m/kg_l/sample_movies.parquet"))
-    resolved_output_dir = Path(output_dir or paths_cfg.get("pilot_output_dir", "data/processed/ml-1m/kg_l/pilot"))
+    if output_dir:
+        resolved_output_dir = Path(output_dir)
+    elif resolved_prompt_version in ("v1.1.0", "v1.1"):
+        resolved_output_dir = Path(paths_cfg.get("pilot_v1_1_output_dir", "data/processed/ml-1m/kg_l/pilot_v1_1"))
+    else:
+        resolved_output_dir = Path(paths_cfg.get("pilot_output_dir", "data/processed/ml-1m/kg_l/pilot"))
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
 
     raw_outputs_path = resolved_output_dir / "raw_outputs.jsonl"
@@ -582,18 +602,16 @@ def run_qwen_pilot(
     summary_path = resolved_output_dir / "pilot_summary.json"
     review_path = resolved_output_dir / "pilot_review.csv"
 
-    # LLM and inference parameters
-    model_id = str(llm_cfg.get("model_id", DEFAULT_MODEL_ID))
-    prompt_version = str(llm_cfg.get("prompt_version", DEFAULT_PROMPT_VERSION))
-    schema_version = str(llm_cfg.get("schema_version", DEFAULT_SCHEMA_VERSION))
-    temperature = float(llm_cfg.get("temperature", 0.0))
-    max_tokens = int(llm_cfg.get("max_tokens", 1024))
-    tensor_parallel_size = int(llm_cfg.get("tensor_parallel_size", 1))
-    gpu_memory_utilization = float(llm_cfg.get("gpu_memory_utilization", 0.90))
-    max_retries = int(llm_cfg.get("max_retries", 1))
-
     # 1. Enforce strict safety guard
-    df_sample = load_pilot_movies(resolved_input, max_allowed=max_movies)
+    if max_movies > MAX_PILOT_MOVIES:
+        raise ValueError(
+            f"Safety guard violation: max_movies ({max_movies}) exceeds the hard "
+            f"pilot upper limit of {MAX_PILOT_MOVIES}. Full catalog extraction is strictly prohibited."
+        )
+
+    df_sample = load_pilot_movies(resolved_input, max_allowed=MAX_PILOT_MOVIES)
+    if len(df_sample) > max_movies:
+        df_sample = df_sample.head(max_movies).copy()
     total_movies = len(df_sample)
 
     # 2. Print prominent pilot mode banner
@@ -604,6 +622,7 @@ def run_qwen_pilot(
         backend: BaseInferenceBackend = MockQwenBackend(
             failure_modes=mock_failures,
             model_id=model_id,
+            prompt_version=resolved_prompt_version,
         )
     elif backend_type == "vllm":
         backend = VLLMQwenBackend(
@@ -649,7 +668,7 @@ def run_qwen_pilot(
             movie_id=movie_id,
             movie_idx=movie_idx,
             tmdb_id=tmdb_id,
-            prompt_version=prompt_version,
+            prompt_version=resolved_prompt_version,
         )
 
         extraction_succeeded = False
@@ -760,7 +779,7 @@ def run_qwen_pilot(
     # 7. Write pilot_summary.json
     summary_data = {
         "model_id": model_id,
-        "prompt_version": prompt_version,
+        "prompt_version": resolved_prompt_version,
         "schema_version": schema_version,
         "backend": backend_type,
         "total_movies_in_sample": total_movies,

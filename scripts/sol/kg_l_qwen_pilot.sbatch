@@ -20,6 +20,8 @@ set -euo pipefail
 
 # Environment name is configurable via PLOTGRAPH_CONDA_ENV, defaulting to 'vllm312'
 CONDA_ENV="${PLOTGRAPH_CONDA_ENV:-vllm312}"
+# Prompt version is configurable via PLOTGRAPH_PROMPT_VERSION, defaulting to 'v1.1.0'
+PROMPT_VERSION="${PLOTGRAPH_PROMPT_VERSION:-v1.1.0}"
 
 echo "========================================================================"
 echo "          ASU SOL SLURM EXECUTION: PLOTGRAPH QWEN PILOT (PHASE 3D)"
@@ -28,6 +30,7 @@ echo "Job Name      : ${SLURM_JOB_NAME:-plotgraph_qwen_pilot}"
 echo "Job ID        : ${SLURM_JOB_ID:-manual}"
 echo "Compute Node  : $(hostname)"
 echo "Target Env    : ${CONDA_ENV}"
+echo "Prompt Version: ${PROMPT_VERSION}"
 echo "Execution Time: $(date)"
 echo "Working Dir   : $(pwd)"
 echo "========================================================================"
@@ -110,13 +113,14 @@ except ImportError:
 
 # 5. Execute Phase 3D Qwen Pilot with vLLM Backend
 echo ""
-echo "--- Starting Qwen2.5-7B-Instruct 30-Movie Pilot ---"
+echo "--- Starting Qwen2.5-7B-Instruct 30-Movie Pilot (${PROMPT_VERSION}) ---"
 python scripts/run_phase3d_qwen_pilot.py \
     --config configs/kg_l.yaml \
-    --backend vllm
+    --backend vllm \
+    --prompt-version "${PROMPT_VERSION}"
 
 echo ""
 echo "========================================================================"
 echo "Job completed successfully at: $(date)"
-echo "Review output artifacts at: data/processed/ml-1m/kg_l/pilot/"
+echo "Review output artifacts at: data/processed/ml-1m/kg_l/pilot_v1_1/ (or pilot/)"
 echo "========================================================================"

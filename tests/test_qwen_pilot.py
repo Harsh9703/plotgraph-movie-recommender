@@ -390,3 +390,54 @@ def test_vllm_backend_import_error_message():
         assert "vLLM is not installed" in err_msg
         assert "pip install .[gpu]" in err_msg
         assert "--backend mock" in err_msg
+
+
+# ==============================================================================
+# 7. PILOT V1.1 INDEPENDENT OUTPUT DIRECTORY TEST
+# ==============================================================================
+
+def test_v1_1_output_directory_does_not_overwrite_v1_0(tmp_path: Path):
+    """Running pilot with prompt v1.1.0 must not overwrite v1.0.0 artifacts."""
+    if not SAMPLE_PARQUET_PATH.exists():
+        pytest.skip(f"Pilot sample not found at {SAMPLE_PARQUET_PATH}")
+
+    dir_v1_0 = tmp_path / "pilot"
+    dir_v1_1 = tmp_path / "pilot_v1_1"
+
+    # Run v1.0.0
+    summary_v1_0 = run_qwen_pilot(
+        config_path="configs/kg_l.yaml",
+        backend_type="mock",
+        input_path=SAMPLE_PARQUET_PATH,
+        output_dir=dir_v1_0,
+        prompt_version="v1.0.0",
+        max_movies=5,
+    )
+    assert summary_v1_0["prompt_version"] == "v1.0.0"
+    v1_0_summary_file = dir_v1_0 / "pilot_summary.json"
+    assert v1_0_summary_file.exists()
+    v1_0_mtime_before = v1_0_summary_file.stat().st_mtime
+
+    # Run v1.1.0 in separate directory
+    summary_v1_1 = run_qwen_pilot(
+        config_path="configs/kg_l.yaml",
+        backend_type="mock",
+        input_path=SAMPLE_PARQUET_PATH,
+        output_dir=dir_v1_1,
+        prompt_version="v1.1.0",
+        max_movies=5,
+    )
+    assert summary_v1_1["prompt_version"] == "v1.1.0"
+    v1_1_summary_file = dir_v1_1 / "pilot_summary.json"
+    assert v1_1_summary_file.exists()
+
+    # Confirm v1.0 artifacts were not touched or overwritten
+    assert v1_0_summary_file.stat().st_mtime == v1_0_mtime_before
+    with open(v1_0_summary_file, "r", encoding="utf-8") as f:
+        data_v1_0 = json.load(f)
+    with open(v1_1_summary_file, "r", encoding="utf-8") as f:
+        data_v1_1 = json.load(f)
+
+    assert data_v1_0["prompt_version"] == "v1.0.0"
+    assert data_v1_1["prompt_version"] == "v1.1.0"
+    assert dir_v1_0 != dir_v1_1

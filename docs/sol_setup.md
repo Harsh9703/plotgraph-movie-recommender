@@ -136,7 +136,7 @@ cat logs/sol/plotgraph_qwen_pilot_<JOB_ID>.err
 
 ## 6. Reviewing Pilot Artifacts
 
-When the job completes, verify the artifacts generated in `data/processed/ml-1m/kg_l/pilot/`:
+When the job completes, verify the artifacts generated in `data/processed/ml-1m/kg_l/pilot_v1_1/` (or `pilot/` if running v1.0.0):
 
 | Artifact | Format | Description |
 |---|---|---|
@@ -146,19 +146,29 @@ When the job completes, verify the artifacts generated in `data/processed/ml-1m/
 | `pilot_summary.json` | JSON | Summary metrics: total sample count (30), success count, retries, runtime, and success rate. |
 | `pilot_review.csv` | CSV | Human-readable inspection sheet with extracted themes, settings, devices, protagonists, source materials, continuous Plutchik emotions, and prominent emotions (`score > 0.5`). |
 
+### Comparing Pilot Prompt Versions (v1.0.0 vs v1.1.0)
+To compare completed pilot runs side by side across schema validity, continuous emotion distributions, prominent emotion frequencies, and semantic entity counts:
+```bash
+python scripts/compare_pilots.py \
+    --dir-a data/processed/ml-1m/kg_l/pilot \
+    --dir-b data/processed/ml-1m/kg_l/pilot_v1_1 \
+    --name-a "Prompt v1.0.0" \
+    --name-b "Prompt v1.1.0"
+```
+
 ### Quick Verification Commands
 ```bash
-# Check summary metrics
-cat data/processed/ml-1m/kg_l/pilot/pilot_summary.json
+# Check summary metrics for v1.1 pilot
+cat data/processed/ml-1m/kg_l/pilot_v1_1/pilot_summary.json
 
 # Check first few rows of the human review table
-head -n 5 data/processed/ml-1m/kg_l/pilot/pilot_review.csv
+head -n 5 data/processed/ml-1m/kg_l/pilot_v1_1/pilot_review.csv
 
 # Verify 30 successfully validated records
-wc -l data/processed/ml-1m/kg_l/pilot/validated_extractions.jsonl
+wc -l data/processed/ml-1m/kg_l/pilot_v1_1/validated_extractions.jsonl
 
 # Confirm zero unhandled failures
-wc -l data/processed/ml-1m/kg_l/pilot/failures.jsonl
+wc -l data/processed/ml-1m/kg_l/pilot_v1_1/failures.jsonl
 ```
 
 ---
@@ -167,6 +177,10 @@ wc -l data/processed/ml-1m/kg_l/pilot/failures.jsonl
 
 For local testing without GPU or model downloads:
 ```bash
+# Run with default refined prompt (v1.1.0) outputting to pilot_v1_1:
 python scripts/run_phase3d_qwen_pilot.py --backend mock
+
+# Or explicitly select prompt version v1.0.0 outputting to pilot:
+python scripts/run_phase3d_qwen_pilot.py --backend mock --prompt-version v1.0.0
 ```
 This runs the complete safety guard, checkpointing, retry logic, summary generation, and review CSV export locally using mock responses.

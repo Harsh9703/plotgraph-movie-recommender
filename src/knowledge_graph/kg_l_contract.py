@@ -57,7 +57,9 @@ PLUTCHIK_EMOTIONS: Tuple[str, ...] = (
 # Default intensity threshold for creating evokesEmotion edges in the future KG-L (score > threshold)
 DEFAULT_EMOTION_EDGE_THRESHOLD: float = 0.5
 
-DEFAULT_PROMPT_VERSION: str = "v1.0.0"
+PROMPT_VERSION_V1_0_0: str = "v1.0.0"
+PROMPT_VERSION_V1_1_0: str = "v1.1.0"
+DEFAULT_PROMPT_VERSION: str = "v1.1.0"
 DEFAULT_SCHEMA_VERSION: str = "v1.0.0"
 DEFAULT_MODEL_ID: str = "Qwen/Qwen2.5-7B-Instruct"
 
@@ -335,6 +337,87 @@ Extract the structured knowledge graph entities and Plutchik emotion scores stri
 }}
 """
 
+EXTRACTION_SYSTEM_PROMPT_V1_1 = """You are an expert movie knowledge graph extraction assistant for the PlotGraph research project.
+Your task is to analyze a movie plot overview and extract structured semantic entities and Plutchik emotion intensities.
+
+CRITICAL RULES:
+1. Strict Grounding: Rely ONLY on facts, concepts, and narrative events explicitly stated or directly described in the provided Plot Overview. Do NOT use outside knowledge about the movie, franchise, source material, characters, actors, or production history.
+2. Output Format: Output ONLY a single valid JSON object strictly matching the specified JSON schema. No preamble, no explanation, no markdown commentary.
+3. Entity Conciseness: Entities must be concise noun phrases (1-4 words). Do NOT output full sentences.
+4. Prefer Empty Arrays Over Speculation: If a semantic category is not clearly supported by the overview, return an empty array []. An empty array [] is always preferable to inventing weak, speculative, or unsupported entries.
+5. Protagonist Types Grounding:
+   - Extract character roles or archetypes directly supported by the overview.
+   - Do NOT infer occupation, age, identity, or franchise knowledge from outside knowledge.
+   - Prefer reusable concise roles (e.g. soldier, student, parent, criminal, scientist, journalist, athlete) ONLY when the overview explicitly supports them.
+   - An empty array [] is preferable to an unsupported role.
+6. Narrative Device Definitions and Exclusions:
+   - A narrative device is a storytelling or plot mechanism evident from the overview, such as: time travel, mistaken identity, unreliable narrator, nonlinear narrative, flashback, parallel timelines, frame narrative.
+   - It must NOT simply be: an ordinary plot event, a theme, a protagonist type, a conflict, or a character trait.
+   - If no genuine narrative device is clearly supported, output []. An empty array [] is preferable to inventing a weak narrative device.
+7. Emotion Calibration and Inference:
+   - Score all eight Plutchik basic emotions between 0.0 and 1.0 based on what the plot narrative EVOKES for an audience.
+   - Do NOT require literal emotion words in the overview. Infer likely audience emotions from plot events that are explicitly described.
+   - Calibration guidance:
+     * 0.0 = essentially absent / no meaningful evidence
+     * 0.1–0.3 = weak
+     * 0.4–0.6 = moderate
+     * 0.7–0.8 = strong
+     * 0.9–1.0 = dominant or extremely intense
+   - Zero means essentially no evidence that the narrative would evoke that emotion, not merely that the emotion word itself is absent.
+   - Multiple emotions may be nonzero simultaneously.
+   - Do not artificially force every emotion to be nonzero.
+   - Do not artificially force an emotion above 0.5 merely to create a KG edge.
+   - Scores must reflect evidence in the supplied overview.
+   - Calibration guidance provides reference benchmarks, not deterministic scoring rules.
+   - Examples of evidence that MAY support emotions (these are illustrative examples, not mandatory mappings):
+     * threat, danger, pursuit, horror → fear
+     * death, grief, separation, loss → sadness
+     * betrayal, injustice, violent conflict → anger and/or disgust
+     * friendship, romance, reunion, humor, success → joy and/or trust
+     * uncertainty, revelations, escalating conflict → surprise and/or anticipation
+
+ONTOLOGY DEFINITIONS:
+- themes (hasTheme): Abstract recurring ideas or subjects central to the plot (e.g. "friendship", "revenge", "identity", "survival").
+- settings (hasSetting): Key locations, worlds, historical eras, or social contexts (e.g. "victorian london", "deep space", "suburbia").
+- narrative_devices (hasNarrativeDevice): Storytelling or plot mechanisms (e.g. "time travel", "mistaken identity", "unreliable narrator", "nonlinear narrative", "flashback", "frame narrative"). NOT ordinary plot events, character traits, or conflicts.
+- protagonist_types (hasProtagonistType): Concise character roles or archetypes directly supported by the overview (e.g. "soldier", "student", "parent"). NOT inferred from outside knowledge.
+- based_on (basedOn): Source material explicitly mentioned in the overview (e.g. "novel", "true story", "comic book"). Do NOT assume source material from outside memory.
+- emotions (evokesEmotion): Exact 8 Plutchik continuous dimensions (joy, trust, fear, surprise, sadness, disgust, anger, anticipation) scored in [0.0, 1.0].
+"""
+
+EXTRACTION_USER_PROMPT_TEMPLATE_V1_1 = """Movie Identifiers:
+- Title: {title}
+- MovieLens ID: {movie_id}
+- Movie Index: {movie_idx}
+- TMDB ID: {tmdb_id}
+
+Plot Overview:
+\"\"\"{overview}\"\"\"
+
+Extract the structured knowledge graph entities and calibrated Plutchik emotion scores strictly following this JSON schema:
+{{
+  "movie_idx": {movie_idx},
+  "movie_id": {movie_id},
+  "tmdb_id": {tmdb_id_json},
+  "title": "{title_escaped}",
+  "themes": ["<theme1>", "<theme2>"],
+  "settings": ["<setting1>"],
+  "narrative_devices": ["<device_if_present>"],
+  "protagonist_types": ["<archetype_if_supported>"],
+  "based_on": ["<source_if_explicit>"],
+  "emotions": {{
+    "joy": 0.0,
+    "trust": 0.0,
+    "fear": 0.0,
+    "surprise": 0.0,
+    "sadness": 0.0,
+    "disgust": 0.0,
+    "anger": 0.0,
+    "anticipation": 0.0
+  }}
+}}
+"""
+
 
 def format_extraction_prompt(
     title: str,
@@ -352,19 +435,28 @@ def format_extraction_prompt(
         movie_id: Original MovieLens movie ID.
         movie_idx: Internal 0-indexed movie index.
         tmdb_id: TMDB ID if available.
-        prompt_version: Version identifier.
+        prompt_version: Version identifier ('v1.0.0' or 'v1.1.0').
 
     Returns:
         Tuple of (system_prompt, user_prompt).
     """
-    if prompt_version != "v1.0.0":
-        logger.warning(f"Unknown prompt version '{prompt_version}', defaulting to v1.0.0")
+    if prompt_version in ("v1.0.0", "v1.0"):
+        system_prompt = EXTRACTION_SYSTEM_PROMPT_V1.strip()
+        user_template = EXTRACTION_USER_PROMPT_TEMPLATE_V1
+    elif prompt_version in ("v1.1.0", "v1.1"):
+        system_prompt = EXTRACTION_SYSTEM_PROMPT_V1_1.strip()
+        user_template = EXTRACTION_USER_PROMPT_TEMPLATE_V1_1
+    else:
+        logger.warning(
+            f"Unknown prompt version '{prompt_version}', defaulting to {DEFAULT_PROMPT_VERSION}"
+        )
+        system_prompt = EXTRACTION_SYSTEM_PROMPT_V1_1.strip()
+        user_template = EXTRACTION_USER_PROMPT_TEMPLATE_V1_1
 
-    system_prompt = EXTRACTION_SYSTEM_PROMPT_V1.strip()
     title_escaped = title.replace('"', '\\"')
     tmdb_id_json = str(tmdb_id) if tmdb_id is not None else "null"
 
-    user_prompt = EXTRACTION_USER_PROMPT_TEMPLATE_V1.format(
+    user_prompt = user_template.format(
         title=title,
         movie_id=movie_id,
         movie_idx=movie_idx,
