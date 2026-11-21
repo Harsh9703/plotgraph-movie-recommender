@@ -51,7 +51,8 @@ ontology:
     - disgust
     - anger
     - anticipation
-  emotion_edge_threshold: 0.5
+  # Revised from 0.5 to 0.3 based on pilot empirical evaluation (selects moderate-or-stronger emotions)
+  emotion_edge_threshold: 0.3
 
 llm:
   model_id: "Qwen/Qwen2.5-7B-Instruct"

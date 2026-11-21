@@ -351,7 +351,7 @@ def export_emotion_review_csv(
     - for each of 8 emotions:
       - {emotion}_evidence (semicolon-separated)
       - {emotion}_score (float)
-    - prominent_emotions (semicolon-separated where score > 0.5)
+    - prominent_emotions (semicolon-separated where score > 0.3)
     - status (SUCCESS / FAILED)
     """
     rows = []

@@ -160,18 +160,26 @@ def test_movie_emotion_extraction_schema_and_methods():
     assert extraction.movie_id == 1
     assert extraction.title == "Toy Story (1995)"
 
-    # Prominent emotions threshold test: strictly score > 0.5
-    # joy: 0.85 (>0.5), trust: 0.70 (>0.5), fear: 0.60 (>0.5), surprise: 0.55 (>0.5),
-    # sadness: 0.45 (<=0.5), disgust: 0.0 (<=0.5), anger: 0.0 (<=0.5), anticipation: 0.80 (>0.5)
-    prominent = extraction.get_prominent_emotions(threshold=0.5)
-    assert prominent == ["joy", "trust", "fear", "surprise", "anticipation"]
-    assert "sadness" not in prominent
+    # Prominent emotions threshold test: strictly score > 0.3 (pilot-revised from >0.5)
+    # joy: 0.85 (>0.3), trust: 0.70 (>0.3), fear: 0.60 (>0.3), surprise: 0.55 (>0.3),
+    # sadness: 0.45 (>0.3), disgust: 0.0 (<=0.3), anger: 0.0 (<=0.3), anticipation: 0.80 (>0.3)
+    prominent = extraction.get_prominent_emotions()
+    assert prominent == ["joy", "trust", "fear", "surprise", "sadness", "anticipation"]
+    assert "disgust" not in prominent
+    assert "anger" not in prominent
 
-    # Boundary test for threshold > 0.5
+    # Explicit threshold=0.5 can still be passed
+    prominent_05 = extraction.get_prominent_emotions(threshold=0.5)
+    assert prominent_05 == ["joy", "trust", "fear", "surprise", "anticipation"]
+    assert "sadness" not in prominent_05
+
+    # Boundary test for default threshold > 0.3
+    # Boundary behavior: 0.30 -> no edge, 0.31 -> edge, 0.40 -> edge, 0.29 -> no edge
     custom_dict = _make_valid_emotion_dict()
-    custom_dict["sadness"] = {"evidence": ["Slight sorrow"], "score": 0.50}
-    custom_dict["fear"] = {"evidence": ["Dread"], "score": 0.51}
-    custom_dict["surprise"] = {"evidence": ["Gasp"], "score": 0.49}
+    custom_dict["sadness"] = {"evidence": ["Slight sorrow"], "score": 0.30}
+    custom_dict["fear"] = {"evidence": ["Dread"], "score": 0.31}
+    custom_dict["surprise"] = {"evidence": ["Gasp"], "score": 0.40}
+    custom_dict["disgust"] = {"evidence": ["Gross"], "score": 0.29}
     custom_dict["joy"] = {"evidence": [], "score": 0.0}
     custom_dict["trust"] = {"evidence": [], "score": 0.0}
     custom_dict["anticipation"] = {"evidence": [], "score": 0.0}
@@ -185,18 +193,19 @@ def test_movie_emotion_extraction_schema_and_methods():
         "prompt_version": DEFAULT_EMOTION_PROMPT_VERSION,
         "schema_version": DEFAULT_EMOTION_SCHEMA_VERSION,
     })
-    boundary_prominent = extraction_boundary.get_prominent_emotions(threshold=0.5)
-    assert "fear" in boundary_prominent  # 0.51 > 0.50
-    assert "sadness" not in boundary_prominent  # 0.50 is NOT > 0.50
-    assert "surprise" not in boundary_prominent  # 0.49 is NOT > 0.50
+    boundary_prominent = extraction_boundary.get_prominent_emotions()
+    assert "fear" in boundary_prominent  # 0.31 > 0.30 -> edge
+    assert "surprise" in boundary_prominent  # 0.40 > 0.30 -> edge
+    assert "sadness" not in boundary_prominent  # 0.30 is NOT > 0.30 -> no edge
+    assert "disgust" not in boundary_prominent  # 0.29 is NOT > 0.30 -> no edge
 
-    # Vector record export
-    vec_rec = extraction.to_vector_record(threshold=0.5)
+    # Vector record export defaults to DEFAULT_EMOTION_EDGE_THRESHOLD (0.3)
+    vec_rec = extraction.to_vector_record()
     assert vec_rec["movie_id"] == 1
     assert vec_rec["movie_idx"] == 0
     assert vec_rec["title"] == "Toy Story (1995)"
     assert vec_rec["joy"] == 0.85
-    assert vec_rec["prominent_emotions"] == ["joy", "trust", "fear", "surprise", "anticipation"]
+    assert vec_rec["prominent_emotions"] == ["joy", "trust", "fear", "surprise", "sadness", "anticipation"]
     assert vec_rec["prompt_version"] == DEFAULT_EMOTION_PROMPT_VERSION
     assert vec_rec["schema_version"] == DEFAULT_EMOTION_SCHEMA_VERSION
 

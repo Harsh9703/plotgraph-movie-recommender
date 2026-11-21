@@ -11,7 +11,7 @@ Defines:
    - Step 1: Identify supporting plot evidence from overview.
    - Step 2: Assign calibrated intensity in [0, 1].
 3. Parsing, recovery, and validation functions.
-4. Derivation of standard 8-dimensional emotion vectors for downstream KG-L construction (score > 0.5).
+4. Derivation of standard 8-dimensional emotion vectors for downstream KG-L construction (score > 0.3; pilot-revised from >0.5).
 """
 
 from __future__ import annotations

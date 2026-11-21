@@ -96,8 +96,8 @@ def test_valid_schema_acceptance():
     assert extraction.emotions.joy == 0.85
     assert extraction.emotions.trust == 0.80
 
-    # Prominent emotions thresholding check (score > 0.5)
-    prominent = extraction.emotions.get_prominent_emotions(threshold=0.5)
+    # Prominent emotions thresholding check (score > DEFAULT_EMOTION_EDGE_THRESHOLD)
+    prominent = extraction.emotions.get_prominent_emotions()
     assert "joy" in prominent
     assert "trust" in prominent
     assert "anticipation" in prominent
@@ -107,52 +107,62 @@ def test_valid_schema_acceptance():
 def test_emotion_edge_threshold_boundary_behavior():
     """Verify that evokesEmotion edge creation strictly requires score > threshold (not >=).
 
-    Boundary conditions at default threshold 0.5:
-    - score = 0.49 -> no edge
-    - score = 0.50 -> no edge
-    - score = 0.51 -> edge
+    Boundary conditions at revised threshold 0.3 (pilot-driven methodology revision from 0.5):
+    - score = 0.29 -> no edge
+    - score = 0.30 -> no edge
+    - score = 0.31 -> edge
+    - score = 0.40 -> edge
 
-    All continuous scores, including 0.50, must be preserved in the schema.
+    All continuous scores, including 0.30, 0.50, must be preserved in the schema.
     """
+    assert DEFAULT_EMOTION_EDGE_THRESHOLD == 0.3
+
     emotions = PlutchikEmotions(
-        joy=0.51,        # 0.51 > 0.50 is True  -> edge
-        trust=0.50,      # 0.50 > 0.50 is False -> no edge
-        fear=0.49,       # 0.49 > 0.50 is False -> no edge
-        surprise=0.0,    # 0.00 > 0.50 is False -> no edge
-        sadness=0.50,    # 0.50 > 0.50 is False -> no edge
-        disgust=0.499,   # 0.499 > 0.50 is False -> no edge
-        anger=0.50001,   # 0.50001 > 0.50 is True -> edge
-        anticipation=1.0 # 1.00 > 0.50 is True  -> edge
+        joy=0.31,        # 0.31 > 0.30 is True  -> edge
+        trust=0.30,      # 0.30 > 0.30 is False -> no edge
+        fear=0.29,       # 0.29 > 0.30 is False -> no edge
+        surprise=0.0,    # 0.00 > 0.30 is False -> no edge
+        sadness=0.30,    # 0.30 > 0.30 is False -> no edge
+        disgust=0.299,   # 0.299 > 0.30 is False -> no edge
+        anger=0.40,      # 0.40 > 0.30 is True  -> edge
+        anticipation=1.0 # 1.00 > 0.30 is True  -> edge
     )
 
-    # 1. Schema preservation: exact 0.50 must be preserved without distortion
-    assert emotions.trust == 0.50
-    assert emotions.sadness == 0.50
-    assert emotions.to_dict()["trust"] == 0.50
-    assert emotions.to_dict()["fear"] == 0.49
-    assert emotions.to_dict()["joy"] == 0.51
+    # 1. Schema preservation: exact raw scores must be preserved without distortion
+    assert emotions.trust == 0.30
+    assert emotions.sadness == 0.30
+    assert emotions.to_dict()["trust"] == 0.30
+    assert emotions.to_dict()["fear"] == 0.29
+    assert emotions.to_dict()["joy"] == 0.31
+    assert emotions.to_dict()["anger"] == 0.40
+    assert emotions.to_dict()["anticipation"] == 1.0
 
-    # 2. Prominent emotions edge selection (threshold=0.5)
-    prominent = emotions.get_prominent_emotions(threshold=0.5)
+    # 2. Prominent emotions edge selection (default threshold = 0.3)
+    prominent = emotions.get_prominent_emotions()
 
-    # 0.49 -> no edge
+    # 0.29 and 0.299 -> no edge
     assert "fear" not in prominent
+    assert "disgust" not in prominent
 
-    # 0.50 -> no edge (strictly > 0.5 required)
+    # 0.30 -> no edge (strictly > 0.3 required)
     assert "trust" not in prominent
     assert "sadness" not in prominent
 
-    # 0.499 -> no edge
-    assert "disgust" not in prominent
-
-    # 0.51 -> edge
+    # 0.31 -> edge
     assert "joy" in prominent
-    assert prominent["joy"] == 0.51
+    assert prominent["joy"] == 0.31
 
-    # 0.50001 and 1.0 -> edge
+    # 0.40 -> edge
     assert "anger" in prominent
+    assert prominent["anger"] == 0.40
+
+    # 1.0 -> edge
     assert "anticipation" in prominent
+    assert prominent["anticipation"] == 1.0
     assert len(prominent) == 3
+
+    # Explicit threshold=0.3 gives identical result
+    assert emotions.get_prominent_emotions(threshold=0.3) == prominent
 
 
 def test_empty_semantic_categories_allowed():

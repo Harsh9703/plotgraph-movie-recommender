@@ -54,8 +54,14 @@ PLUTCHIK_EMOTIONS: Tuple[str, ...] = (
     "anticipation",
 )
 
-# Default intensity threshold for creating evokesEmotion edges in the future KG-L (score > threshold)
-DEFAULT_EMOTION_EDGE_THRESHOLD: float = 0.5
+# Intensity threshold for creating evokesEmotion edges in the future KG-L (score > threshold).
+# Pilot-driven methodology revision: revised from originally proposed 0.5 to 0.3 based on empirical pilot evaluation.
+# Calibration: 0.0 = absent, 0.1-0.3 = weak, 0.4-0.6 = moderate, 0.7-0.8 = strong, 0.9-1.0 = dominant.
+# A threshold of score > 0.3 captures moderate-or-stronger evidence-grounded emotions, achieving 76.7% movie coverage
+# on pilot data (vs 23.3% at >0.5) while conservatively excluding weak signals (<=0.3).
+# Note: affects only discrete RDF edge creation and prominent-emotion labels; raw continuous scores
+# across all 8 dimensions are always preserved.
+DEFAULT_EMOTION_EDGE_THRESHOLD: float = 0.3
 
 PROMPT_VERSION_V1_0_0: str = "v1.0.0"
 PROMPT_VERSION_V1_1_0: str = "v1.1.0"

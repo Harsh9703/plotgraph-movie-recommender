@@ -150,7 +150,7 @@ When the job completes, verify the artifacts generated in `data/processed/ml-1m/
 | `validated_extractions.jsonl` | JSON Lines | Strictly validated `MoviePlotExtraction` records complying with the Phase 3C contract. |
 | `failures.jsonl` | JSON Lines | Records of any extractions that exhausted retries, categorized by error type. |
 | `pilot_summary.json` | JSON | Summary metrics: total sample count (30), success count, retries, runtime, and success rate. |
-| `pilot_review.csv` | CSV | Human-readable inspection sheet with extracted themes, settings, devices, protagonists, source materials, continuous Plutchik emotions, and prominent emotions (`score > 0.5`). |
+| `pilot_review.csv` | CSV | Human-readable inspection sheet with extracted themes, settings, devices, protagonists, source materials, continuous Plutchik emotions, and prominent emotions (`score > 0.3`). |
 
 ### Comparing Pilot Prompt Versions (v1.0.0 vs v1.1.0)
 To compare completed pilot runs side by side across schema validity, continuous emotion distributions, prominent emotion frequencies, and semantic entity counts:
@@ -188,7 +188,7 @@ When the dedicated emotion job completes, verify the artifacts generated in `dat
 | `emotion_vectors.jsonl` | JSON Lines | Derived clean 8-dimensional emotion vectors (`movie_id`, `movie_idx`, `title`, 8 emotion scores, `prominent_emotions`) ready for downstream KG-L graph building. |
 | `emotion_failures.jsonl` | JSON Lines | Records of any emotion extractions that exhausted retries. |
 | `emotion_pilot_summary.json` | JSON | Summary metrics: sample count (30), success count, retries, runtime, and success rate. |
-| `emotion_review.csv` | CSV | Human-readable inspection sheet with overview, per-emotion evidence lists, continuous scores, and prominent emotions (`score > 0.5`). |
+| `emotion_review.csv` | CSV | Human-readable inspection sheet with overview, per-emotion evidence lists, continuous scores, and prominent emotions (`score > 0.3`). |
 
 ### 6.3 Three-Way Side-by-Side Emotion Comparison
 To compare emotion distributions and grounding across Combined v1.0, Combined v1.1, and Dedicated Emotion v1.0:

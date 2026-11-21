@@ -330,7 +330,7 @@ The extraction schema permits exactly **6 relation types**:
 3. `hasNarrativeDevice`: Storytelling mechanisms evident in the overview (e.g. `"time travel"`, `"unreliable narrator"`, `"mistaken identity"`).
 4. `hasProtagonistType`: Character archetypes or roles (e.g. `"detective"`, `"sentient toy"`, `"high school student"`).
 5. `basedOn`: Explicit source material stated in the overview (e.g. `"novel"`, `"true story"`, `"comic book"`).
-6. `evokesEmotion`: Plutchik 8-emotion intensity scores (edges added in future KG-L only when intensity > 0.5).
+6. `evokesEmotion`: Plutchik 8-emotion intensity scores (edges added in future KG-L only when intensity > 0.3; pilot-revised from >0.5).
 
 ### 3. Plutchik Eight Emotion Dimensions
 
@@ -373,7 +373,7 @@ Phase 3D implements the GPU inference execution and verification pipeline for a 
 > **Research Integrity & Compute Boundaries**:
 > - **Strict Safety Guard**: Hard-coded assertion enforcing $\le 30$ movies. Execution against the full MovieLens catalog ($\sim 3,810$ movies) is strictly prohibited and immediately aborted.
 > - **Zero Local GPU Overhead**: Local testing and development run via a deterministic mock backend without requiring GPU hardware, PyTorch with CUDA, or downloading multi-gigabyte model weights.
-> - **Reused Contract**: Directly enforces the Phase 3C schema, prompt templates, entity canonicalization, and Plutchik emotion threshold (`score > 0.5`).
+> - **Reused Contract**: Directly enforces the Phase 3C schema, prompt templates, entity canonicalization, and Plutchik emotion threshold (`score > 0.3`).
 
 ### 1. Pluggable Backends
 
@@ -394,7 +394,7 @@ All pilot artifacts are generated in `data/processed/ml-1m/kg_l/pilot/`:
 - `validated_extractions.jsonl`: Line-delimited valid `MoviePlotExtraction` records.
 - `failures.jsonl`: Line-delimited failure records for extractions that exhausted retries.
 - `pilot_summary.json`: High-level run metrics (counts, retries, runtime, success rate).
-- `pilot_review.csv`: Human-readable inspection sheet with extracted themes, settings, narrative devices, protagonist types, source materials, continuous Plutchik emotion scores, and prominent emotions (`score > 0.5`).
+- `pilot_review.csv`: Human-readable inspection sheet with extracted themes, settings, narrative devices, protagonist types, source materials, continuous Plutchik emotion scores, and prominent emotions (`score > 0.3`).
 
 ### 4. Running the Pilot Locally (Mock Mode)
 
@@ -449,7 +449,7 @@ Defined in `src/knowledge_graph/emotion_contract.py`:
 Phase 3E generates two complementary output formats under `data/processed/ml-1m/kg_l/emotion_pilot_v1/`:
 1. `validated_emotion_evidence.jsonl`: Rich evidence records with exact text quotes and scores for complete auditability.
 2. `emotion_vectors.jsonl`: Lean, validated 8-dimensional float vectors (`movie_id`, `movie_idx`, `title`, 8 emotion scores, `prominent_emotions`) directly consumable by downstream KG-L graph builders without re-parsing evidence.
-3. `emotion_review.csv`: Human-inspection sheet displaying overview, per-emotion evidence lists, continuous scores, and prominent emotions (`score > 0.5`).
+3. `emotion_review.csv`: Human-inspection sheet displaying overview, per-emotion evidence lists, continuous scores, and prominent emotions (`score > 0.3`).
 
 ### 4. Running the Phase 3E Dedicated Emotion Pilot
 
@@ -472,6 +472,47 @@ python scripts/compare_emotion_pilots.py \
     --dir-v1-1 data/processed/ml-1m/kg_l/pilot_v1_1 \
     --dir-emotion-v1 data/processed/ml-1m/kg_l/emotion_pilot_v1
 ```
+
+### 6. Pilot Completion & Methodology Freeze
+
+Following real Qwen2.5-7B-Instruct pilot executions on ASU SOL GPU compute across combined prompts (v1.0.0, v1.1.0) and dedicated evidence-grounded emotion prompts (v1.0.0), extraction methodology is frozen for full-scale extraction:
+
+1. **Semantic Extraction**:
+   - Model: `Qwen/Qwen2.5-7B-Instruct`
+   - Prompt: `v1.1.0`
+   - Schema: Fixed semantic ontology (`themes`, `settings`, `narrative_devices`, `protagonist_types`, `based_on`)
+2. **Emotion Extraction**:
+   - Model: `Qwen/Qwen2.5-7B-Instruct`
+   - Prompt: Dedicated evidence-grounded prompt `v1.0.0`
+   - Schema: Evidence-grounded Plutchik schema with strict evidence-score consistency
+3. **Continuous Score Preservation**:
+   - All 8 raw continuous Plutchik emotion scores in $[0.0, 1.0]$ are strictly preserved and untouched across all extraction artifacts (`validated_emotion_evidence.jsonl`, `emotion_vectors.jsonl`, `emotion_review.csv`).
+
+### 7. Pilot-Driven Emotion KG Edge Threshold Revision (`score > 0.3`)
+
+The original project proposal specified that discrete RDF `evokesEmotion` edges in KG-L be instantiated when `score > 0.5`. Empirical analysis across the 30-movie pilot revealed that direct thresholding at $>0.5$ caused severe sparsity:
+
+| Threshold | Total Prominent Edges | Avg Edges / Movie | Movies With No Emotion Edge | Movie Coverage (%) |
+| :---: | :---: | :---: | :---: | :---: |
+| `>0.2` | 65 | 2.17 | 7 | 76.7% |
+| **`>0.3` (Selected)** | **48** | **1.60** | **7** | **76.7%** |
+| `>0.4` | 14 | 0.47 | 19 | 36.7% |
+| `>0.5` (Original) | 7 | 0.23 | 23 | 23.3% |
+
+#### Calibration & Rationale
+Under the evidence-grounded emotion prompt, intensity scores are calibrated as:
+- `0.0`: Absent
+- `0.1`–`0.3`: Weak signal
+- `0.4`–`0.6`: Moderate signal
+- `0.7`–`0.8`: Strong signal
+- `0.9`–`1.0`: Dominant signal
+
+- **Threshold `>0.3`**: Captures all moderate, strong, and dominant emotional relationships while filtering out weak signals ($\le 0.3$). It dramatically expands movie coverage from 23.3% to 76.7% (yielding 1.60 edges/movie vs. 0.23 edges/movie).
+- **Comparison to `>0.2`**: Lowering the threshold to $>0.2$ introduces 17 additional weak edges without improving catalog movie coverage (the same 7 movies remain without emotion edges).
+- **Boundary Behavior**:
+  - `score = 0.30` $\rightarrow$ no edge
+  - `score = 0.31` $\rightarrow$ edge
+  - `score = 0.40` $\rightarrow$ edge
 
 
 

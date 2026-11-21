@@ -5,7 +5,7 @@ Verifies:
 2. Mock Inference Backend: Deterministic generation of schema-compliant responses.
 3. Checkpointing and Resumption: Skipping already validated movies without redundant calls.
 4. Retry Mechanism & Failure Logging: Error categorization, raw output preservation, and graceful continuation.
-5. Pilot Review CSV & Summary JSON: Correct schema, continuous emotions, and prominent emotion filtering (score > 0.5).
+5. Pilot Review CSV & Summary JSON: Correct schema, continuous emotions, and prominent emotion filtering (score > 0.3).
 6. vLLM Backend Lazy Import: Clear diagnostic error message when vLLM is not installed.
 """
 
@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 from src.knowledge_graph.kg_l_contract import (
+    DEFAULT_EMOTION_EDGE_THRESHOLD,
     ExtractionParseError,
     ExtractionValidationError,
     MoviePlotExtraction,
@@ -125,10 +126,10 @@ def test_mock_backend_generates_valid_schema():
     for emo, score in emotions.items():
         assert 0.0 <= score <= 1.0
 
-    # Prominent emotions must be strictly > 0.5
-    prominent = extraction.emotions.get_prominent_emotions(threshold=0.5)
+    # Prominent emotions must be strictly > 0.3 (revised from >0.5)
+    prominent = extraction.emotions.get_prominent_emotions(threshold=DEFAULT_EMOTION_EDGE_THRESHOLD)
     for emo, score in prominent.items():
-        assert score > 0.5
+        assert score > DEFAULT_EMOTION_EDGE_THRESHOLD
 
 
 def test_mock_backend_simulates_failure_modes():
@@ -249,10 +250,10 @@ def test_run_qwen_pilot_end_to_end_mock(tmp_path: Path):
             val = float(row[emo])
             assert 0.0 <= val <= 1.0
 
-        if pd.notna(row["prominent_emotions"]) and row["prominent_emotions"]:
-            prom_list = [e.strip() for e in str(row["prominent_emotions"]).split(";")]
-            for prom_emo in prom_list:
-                assert float(row[prom_emo]) > 0.5
+            if pd.notna(row["prominent_emotions"]) and row["prominent_emotions"]:
+                prom_list = [e.strip() for e in str(row["prominent_emotions"]).split(";")]
+                for prom_emo in prom_list:
+                    assert float(row[prom_emo]) > DEFAULT_EMOTION_EDGE_THRESHOLD
 
 
 # ==============================================================================

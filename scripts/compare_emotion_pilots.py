@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from src.knowledge_graph.pilot_comparison import (
+    DEFAULT_EMOTION_EDGE_THRESHOLD,
     compare_three_way_emotion_pilots,
     format_three_way_emotion_table,
 )
@@ -93,8 +94,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.5,
-        help="Threshold for prominent emotion edge creation (default: 0.5).",
+        default=DEFAULT_EMOTION_EDGE_THRESHOLD,
+        help=f"Threshold for prominent emotion edge creation (default: {DEFAULT_EMOTION_EDGE_THRESHOLD}; revised from 0.5 based on pilot analysis).",
     )
     parser.add_argument(
         "--output-json",

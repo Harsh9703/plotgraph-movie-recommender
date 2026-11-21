@@ -84,14 +84,14 @@ def compute_pilot_metrics(
     - Schema success rate
     - Mean and median per emotion
     - Zero count (score == 0.0) per emotion
-    - Count above threshold (score > 0.5) per emotion
+    - Count above threshold (score > threshold) per emotion
     - Number of movies with no emotion above threshold
     - Average semantic entity count per category
     - Empty count (count == 0) per semantic category
 
     Args:
         source: Pilot directory, CSV path, or DataFrame.
-        emotion_threshold: Threshold for prominent emotions (default 0.5).
+        emotion_threshold: Threshold for prominent emotions (default: DEFAULT_EMOTION_EDGE_THRESHOLD).
 
     Returns:
         Dictionary of computed metrics.
@@ -173,6 +173,7 @@ def compute_pilot_metrics(
         "successful_movies": successful_count,
         "failed_movies": failed_count,
         "schema_success_rate": schema_success_rate,
+        "emotion_threshold": emotion_threshold,
         "movies_with_no_prominent_emotions": movies_with_no_prominent,
         "emotions": emotion_stats,
         "semantic_categories": semantic_stats,
@@ -252,6 +253,7 @@ def format_comparison_table(comparison_result: Dict[str, Any]) -> str:
     m_a = p_a["metrics"]
     m_b = p_b["metrics"]
     deltas = comparison_result["deltas"]
+    thresh = m_a.get("emotion_threshold", DEFAULT_EMOTION_EDGE_THRESHOLD)
 
     lines: List[str] = [
         "=" * 84,
@@ -262,7 +264,7 @@ def format_comparison_table(comparison_result: Dict[str, Any]) -> str:
         "OVERALL EXECUTION:",
         f"  Total Movies Sampled               {m_a['total_movies']:>14} {m_b['total_movies']:>14} {m_b['total_movies'] - m_a['total_movies']:>+14}",
         f"  Schema Success Rate                {m_a['schema_success_rate']:>13.1f}% {m_b['schema_success_rate']:>13.1f}% {deltas['schema_success_rate']:>+13.1f}%",
-        f"  Movies with No Emotion > 0.5       {m_a['movies_with_no_prominent_emotions']:>14} {m_b['movies_with_no_prominent_emotions']:>14} {deltas['movies_with_no_prominent_emotions']:>+14}",
+        f"  Movies with No Emotion > {thresh:.1f}       {m_a['movies_with_no_prominent_emotions']:>14} {m_b['movies_with_no_prominent_emotions']:>14} {deltas['movies_with_no_prominent_emotions']:>+14}",
         "",
         "EMOTIONS (Plutchik 8 Dimensions):",
     ]
@@ -275,7 +277,7 @@ def format_comparison_table(comparison_result: Dict[str, Any]) -> str:
         lines.append(f"    Mean                             {ea['mean']:>14.3f} {eb['mean']:>14.3f} {ed['mean']:>+14.3f}")
         lines.append(f"    Median                           {ea['median']:>14.3f} {eb['median']:>14.3f} {ed['median']:>+14.3f}")
         lines.append(f"    Zero Count (score == 0.0)        {ea['zero_count']:>14} {eb['zero_count']:>14} {ed['zero_count']:>+14}")
-        lines.append(f"    Prominent Count (score > 0.5)    {ea['count_above_threshold']:>14} {eb['count_above_threshold']:>14} {ed['count_above_threshold']:>+14}")
+        lines.append(f"    Prominent Count (score > {thresh:.1f})    {ea['count_above_threshold']:>14} {eb['count_above_threshold']:>14} {ed['count_above_threshold']:>+14}")
 
     lines.append("")
     lines.append("SEMANTIC ENTITY CATEGORIES:")
@@ -428,6 +430,7 @@ def compute_evidence_emotion_metrics(
         "successful_movies": successful_count,
         "failed_movies": failed_count,
         "schema_success_rate": schema_success_rate,
+        "emotion_threshold": emotion_threshold,
         "movies_with_no_prominent_emotions": movies_no_prominent,
         "has_evidence": has_evidence_cols,
         "emotions": emotion_stats,
@@ -473,6 +476,8 @@ def format_three_way_emotion_table(comparison_result: Dict[str, Any]) -> str:
     n2, m2 = p2["name"], p2["metrics"]
     ne, me = pe["name"], pe["metrics"]
 
+    thresh = me.get("emotion_threshold", DEFAULT_EMOTION_EDGE_THRESHOLD)
+
     lines: List[str] = [
         "=" * 96,
         "             THREE-WAY EMOTION PILOT COMPARISON REPORT (PHASE 3D vs 3E)",
@@ -482,7 +487,7 @@ def format_three_way_emotion_table(comparison_result: Dict[str, Any]) -> str:
         "OVERALL EXECUTION:",
         f"  Total Movies Sampled               {m1['total_movies']:>18} {m2['total_movies']:>18} {me['total_movies']:>20}",
         f"  Schema Success Rate                {m1['schema_success_rate']:>17.1f}% {m2['schema_success_rate']:>17.1f}% {me['schema_success_rate']:>19.1f}%",
-        f"  Movies with No Emotion > 0.5       {m1['movies_with_no_prominent_emotions']:>18} {m2['movies_with_no_prominent_emotions']:>18} {me['movies_with_no_prominent_emotions']:>20}",
+        f"  Movies with No Emotion > {thresh:.1f}       {m1['movies_with_no_prominent_emotions']:>18} {m2['movies_with_no_prominent_emotions']:>18} {me['movies_with_no_prominent_emotions']:>20}",
         "",
         "EMOTIONS (Plutchik 8 Dimensions):",
     ]
@@ -495,7 +500,7 @@ def format_three_way_emotion_table(comparison_result: Dict[str, Any]) -> str:
         lines.append(f"    Mean                             {e1['mean']:>18.3f} {e2['mean']:>18.3f} {ee['mean']:>20.3f}")
         lines.append(f"    Median                           {e1['median']:>18.3f} {e2['median']:>18.3f} {ee['median']:>20.3f}")
         lines.append(f"    Zero Count (score == 0.0)        {e1['zero_count']:>18} {e2['zero_count']:>18} {ee['zero_count']:>20}")
-        lines.append(f"    Prominent Count (score > 0.5)    {e1['count_above_threshold']:>18} {e2['count_above_threshold']:>18} {ee['count_above_threshold']:>20}")
+        lines.append(f"    Prominent Count (score > {thresh:.1f})    {e1['count_above_threshold']:>18} {e2['count_above_threshold']:>18} {ee['count_above_threshold']:>20}")
         if ee.get("avg_evidence_count") is not None:
             lines.append(f"    Avg Evidence Items / Movie       {'N/A':>18} {'N/A':>18} {ee['avg_evidence_count']:>20.2f}")
 
