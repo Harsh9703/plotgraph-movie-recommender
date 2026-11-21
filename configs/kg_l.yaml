@@ -1,13 +1,21 @@
-# Knowledge Graph LLM Extraction Contract Configuration (Phase 3C)
+# Knowledge Graph LLM Extraction Contract and Pilot Configuration (Phase 3C & 3D)
 
 paths:
   # Input Phase 3A verified unified metadata artifact
   input_metadata_parquet: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
 
-  # Sample output for future LLM extraction testing
+  # Phase 3C sample output
   output_dir: "data/processed/ml-1m/kg_l"
   sample_movies_parquet: "data/processed/ml-1m/kg_l/sample_movies.parquet"
   sample_summary_json: "data/processed/ml-1m/kg_l/sample_summary.json"
+
+  # Phase 3D pilot output paths
+  pilot_output_dir: "data/processed/ml-1m/kg_l/pilot"
+  raw_outputs_jsonl: "data/processed/ml-1m/kg_l/pilot/raw_outputs.jsonl"
+  validated_extractions_jsonl: "data/processed/ml-1m/kg_l/pilot/validated_extractions.jsonl"
+  failures_jsonl: "data/processed/ml-1m/kg_l/pilot/failures.jsonl"
+  pilot_summary_json: "data/processed/ml-1m/kg_l/pilot/pilot_summary.json"
+  pilot_review_csv: "data/processed/ml-1m/kg_l/pilot/pilot_review.csv"
 
 ontology:
   semantic_relations:
@@ -32,6 +40,13 @@ llm:
   model_id: "Qwen/Qwen2.5-7B-Instruct"
   prompt_version: "v1.0.0"
   schema_version: "v1.0.0"
+  # Pilot inference parameters
+  temperature: 0.0
+  max_tokens: 1024
+  tensor_parallel_size: 1
+  gpu_memory_utilization: 0.90
+  max_retries: 1
+  max_pilot_movies: 30
 
 sampling:
   sample_size: 30

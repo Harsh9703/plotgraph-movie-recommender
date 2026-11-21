@@ -92,6 +92,7 @@ The test suite covers:
 13. `tests/test_tmdb_metadata.py`: Safe parsing (`ast.literal_eval`), malformed non-numeric ID rejection, deterministic deduplication, director and top-5 actor extraction, release decade derivation, zero catalog dropping, and end-to-end integration.
 14. `tests/test_kg_m.py`: Deterministic entity/movie URI canonicalization, Unicode handling, synthetic graph construction, missing metadata handling, Turtle round-trip preservation, SPARQL query engine helpers, and real KG-M graph validation.
 15. `tests/test_kg_l_contract.py`: Fixed ontology relations (6), exact 8 Plutchik emotions, strict Pydantic extraction schema, duplicate/blank entity handling, markdown-fenced JSON extraction/recovery, deterministic prompt templates, and sample export validity.
+16. `tests/test_qwen_pilot.py`: Pilot safety guard enforcement, mock inference execution, checkpointing/resumption, retry logic and error logging, summary generation, and review CSV export.
 
 ---
 
@@ -362,6 +363,59 @@ python scripts/run_phase3c_kg_l_prep.py --config configs/kg_l.yaml
 Output artifacts (Git-ignored under `data/processed/ml-1m/kg_l/`):
 - `data/processed/ml-1m/kg_l/sample_movies.parquet` (30 deterministic sample movies)
 - `data/processed/ml-1m/kg_l/sample_summary.json` (Traceability summary with IDs, decades, and overview lengths)
+
+---
+
+## Phase 3D: GPU Inference Infrastructure & 30-Movie Qwen Pilot
+
+Phase 3D implements the GPU inference execution and verification pipeline for a strictly bounded 30-movie pilot using `Qwen/Qwen2.5-7B-Instruct` on ASU SOL GPU compute via SLURM and vLLM, with local mocking support for macOS/CPU development.
+
+> **Research Integrity & Compute Boundaries**:
+> - **Strict Safety Guard**: Hard-coded assertion enforcing $\le 30$ movies. Execution against the full MovieLens catalog ($\sim 3,810$ movies) is strictly prohibited and immediately aborted.
+> - **Zero Local GPU Overhead**: Local testing and development run via a deterministic mock backend without requiring GPU hardware, PyTorch with CUDA, or downloading multi-gigabyte model weights.
+> - **Reused Contract**: Directly enforces the Phase 3C schema, prompt templates, entity canonicalization, and Plutchik emotion threshold (`score > 0.5`).
+
+### 1. Pluggable Backends
+
+- **Mock Backend (`--backend mock`)**: Generates deterministic, valid structured JSON responses matching the Phase 3C schema on macOS/Linux CPU. Supports simulated failure injection (`malformed_json`, `schema_validation_error`, `id_mismatch`, `retry_then_succeed`, `backend_error`) for testing.
+- **vLLM Backend (`--backend vllm`)**: Lazy-loads `vllm` for real tensor-parallel GPU inference on ASU SOL (`temperature=0.0`, greedy decoding, `max_tokens=1024`, `gpu_memory_utilization=0.90`).
+
+### 2. Checkpointing, Resumption & Error Handling
+
+- **Checkpointing**: Every successfully validated extraction is appended to `validated_extractions.jsonl`. On re-run, already validated movies are skipped automatically.
+- **Raw Output Traceability**: Every raw model completion (including malformed outputs and retries) is preserved in `raw_outputs.jsonl`.
+- **Automatic Retry Engine**: Malformed or non-compliant responses trigger up to 1 retry (`max_retries=1`) with an explicit formatting reminder.
+- **Categorized Failures**: Persistent failures are logged to `failures.jsonl` categorized by error type (`json_syntax_error`, `schema_validation_error`, `id_mismatch`, `backend_error`) without halting the pipeline.
+
+### 3. Pilot Output Artifacts
+
+All pilot artifacts are generated in `data/processed/ml-1m/kg_l/pilot/`:
+- `raw_outputs.jsonl`: Line-delimited raw outputs from Qwen for every attempt.
+- `validated_extractions.jsonl`: Line-delimited valid `MoviePlotExtraction` records.
+- `failures.jsonl`: Line-delimited failure records for extractions that exhausted retries.
+- `pilot_summary.json`: High-level run metrics (counts, retries, runtime, success rate).
+- `pilot_review.csv`: Human-readable inspection sheet with extracted themes, settings, narrative devices, protagonist types, source materials, continuous Plutchik emotion scores, and prominent emotions (`score > 0.5`).
+
+### 4. Running the Pilot Locally (Mock Mode)
+
+```bash
+python scripts/run_phase3d_qwen_pilot.py --backend mock
+```
+
+### 5. Running on ASU SOL (GPU Compute via SLURM)
+
+Refer to [`docs/sol_setup.md`](docs/sol_setup.md) for complete cluster environment configuration.
+
+Submit the SLURM batch job:
+```bash
+sbatch scripts/sol/kg_l_qwen_pilot.sbatch
+```
+
+Monitor job output:
+```bash
+tail -f logs/sol/plotgraph_qwen_pilot_<JOB_ID>.out
+```
+
 
 
 

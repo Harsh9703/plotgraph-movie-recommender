@@ -55,6 +55,19 @@ from .kg_l_contract import (
     export_sample_movies,
     get_synthetic_fixtures,
 )
+from .qwen_pilot import (
+    MAX_PILOT_MOVIES,
+    load_pilot_movies,
+    print_pilot_banner,
+    BaseInferenceBackend,
+    MockQwenBackend,
+    VLLMQwenBackend,
+    load_validated_movie_indices,
+    load_validated_extractions,
+    load_failure_indices,
+    export_pilot_review_csv,
+    run_qwen_pilot,
+)
 
 __all__ = [
     "PGO",
@@ -106,4 +119,15 @@ __all__ = [
     "select_sample_movies",
     "export_sample_movies",
     "get_synthetic_fixtures",
+    "MAX_PILOT_MOVIES",
+    "load_pilot_movies",
+    "print_pilot_banner",
+    "BaseInferenceBackend",
+    "MockQwenBackend",
+    "VLLMQwenBackend",
+    "load_validated_movie_indices",
+    "load_validated_extractions",
+    "load_failure_indices",
+    "export_pilot_review_csv",
+    "run_qwen_pilot",
 ]
