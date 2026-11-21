@@ -65,6 +65,12 @@ def parse_args() -> argparse.Namespace:
         default=MAX_PILOT_MOVIES,
         help=f"Maximum movies to process in pilot mode (strictly <= {MAX_PILOT_MOVIES}).",
     )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=None,
+        help="Maximum retries per failed movie extraction (default: from config, safely defaults to 1).",
+    )
     return parser.parse_args()
 
 
@@ -79,6 +85,7 @@ def main() -> int:
             output_dir=args.output_dir,
             prompt_version=args.prompt_version,
             max_movies=args.max_movies,
+            max_retries=args.max_retries,
         )
     except Exception as err:
         logger.error(f"Emotion pilot execution failed with error: {err}", exc_info=True)

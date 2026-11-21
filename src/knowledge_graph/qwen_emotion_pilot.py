@@ -136,8 +136,32 @@ class MockQwenEmotionBackend(BaseInferenceBackend):
             raise RuntimeError(f"Simulated CUDA backend error for movie {movie_idx}")
 
         # 2. Simulated retry then succeed
-        if fmode == "retry_then_succeed":
+        if fmode in ("retry_then_succeed", "retry_schema_then_succeed"):
             if call_num == 1:
+                if fmode == "retry_schema_then_succeed":
+                    # Exact schema violation from real Phase 3E pilot: score == 0.0 with evidence
+                    real_failure_data = {
+                        "movie_idx": movie_idx,
+                        "movie_id": movie_id,
+                        "tmdb_id": tmdb_id,
+                        "title": title,
+                        "emotions": {
+                            emo: (
+                                {"evidence": ["discovered by a fashion photographer"], "score": 0.0}
+                                if emo == "trust"
+                                else (
+                                    {"evidence": ["dangerous conflict described in plot"], "score": 0.65}
+                                    if emo == "fear"
+                                    else {"evidence": [], "score": 0.0}
+                                )
+                            )
+                            for emo in PLUTCHIK_EMOTIONS
+                        },
+                        "model_id": self.model_id,
+                        "prompt_version": self.prompt_version,
+                        "schema_version": DEFAULT_EMOTION_SCHEMA_VERSION,
+                    }
+                    return json.dumps(real_failure_data)
                 return "Malformed JSON attempt 1: { incomplete json..."
 
         # 3. Simulated malformed JSON
@@ -373,7 +397,68 @@ def export_emotion_review_csv(
 
 
 # ==============================================================================
-# 4. CORE EMOTION PILOT ORCHESTRATOR
+# 4. CONFIGURATION & RETRY RESOLUTION
+# ==============================================================================
+
+def validate_and_resolve_max_retries(
+    explicit_retries: Optional[Any] = None,
+    cfg: Optional[Dict[str, Any]] = None,
+) -> int:
+    """Validate and resolve max_retries for the emotion pilot.
+
+    Priority:
+    1. explicit_retries if provided (not None)
+    2. cfg['emotion_llm']['max_retries'] if present and not None
+    3. cfg['llm']['max_retries'] if present and not None
+    4. Default: 1
+
+    Validation Rules:
+    - Must be an integer >= 0.
+    - If missing or null, safely defaults to 1.
+    - Rejects booleans (e.g. True/False), strings, floats, negative values, and non-numeric objects.
+
+    Returns:
+        Validated integer retry count >= 0.
+
+    Raises:
+        ValueError: If value is not an integer or is negative.
+    """
+    raw_val: Any = None
+
+    if explicit_retries is not None:
+        raw_val = explicit_retries
+    elif cfg is not None:
+        emotion_cfg = cfg.get("emotion_llm")
+        if isinstance(emotion_cfg, dict) and "max_retries" in emotion_cfg and emotion_cfg["max_retries"] is not None:
+            raw_val = emotion_cfg["max_retries"]
+        else:
+            general_cfg = cfg.get("llm")
+            if isinstance(general_cfg, dict) and "max_retries" in general_cfg and general_cfg["max_retries"] is not None:
+                raw_val = general_cfg["max_retries"]
+
+    # Safe default when missing or null
+    if raw_val is None:
+        return 1
+
+    # Python bool inherits from int (isinstance(True, int) is True), so check explicitly
+    if isinstance(raw_val, bool):
+        raise ValueError(f"max_retries must be an integer >= 0, got boolean: {raw_val!r}")
+
+    # Must be integer type
+    if not isinstance(raw_val, int):
+        raise ValueError(
+            f"max_retries must be an integer, got {type(raw_val).__name__}: {raw_val!r}"
+        )
+
+    # Must be non-negative
+    if raw_val < 0:
+        raise ValueError(f"max_retries must be an integer >= 0, got negative value: {raw_val}")
+
+    return raw_val
+
+
+# ==============================================================================
+# 5. CORE EMOTION PILOT ORCHESTRATOR
 # ==============================================================================
 
 def run_qwen_emotion_pilot(
@@ -418,6 +503,9 @@ def run_qwen_emotion_pilot(
     emotion_llm_cfg = cfg.get("emotion_llm", {})
     general_llm_cfg = cfg.get("llm", {})
 
+    # Validate and resolve max_retries before inference begins
+    max_retries = validate_and_resolve_max_retries(explicit_retries=max_retries, cfg=cfg)
+
     model_id = str(emotion_llm_cfg.get("model_id") or general_llm_cfg.get("model_id", DEFAULT_MODEL_ID))
     resolved_prompt_version = str(
         prompt_version
@@ -432,9 +520,6 @@ def run_qwen_emotion_pilot(
     max_tokens = int(emotion_llm_cfg.get("max_tokens", 1536))
     tensor_parallel_size = int(emotion_llm_cfg.get("tensor_parallel_size", 1))
     gpu_memory_utilization = float(emotion_llm_cfg.get("gpu_memory_utilization", 0.90))
-    resolved_max_retries = int(
-        max_retries if max_retries is not None else emotion_llm_cfg.get("max_retries", 1)
-    )
 
     # Resolve output directory (isolated from semantic pilot dirs)
     raw_input_path = input_sample_path or input_path
@@ -524,7 +609,7 @@ def run_qwen_emotion_pilot(
         last_error: Optional[Exception] = None
         last_raw_response: str = ""
 
-        for attempt in range(1, 1 + resolved_max_retries + 1):
+        for attempt in range(1, 1 + max_retries + 1):
             if attempt > 1:
                 total_retries_used += 1
                 logger.info(f"Retrying emotion extraction for movie {movie_idx} ('{title}') (attempt {attempt})...")
@@ -650,7 +735,7 @@ def run_qwen_emotion_pilot(
             "max_tokens": max_tokens,
             "tensor_parallel_size": tensor_parallel_size,
             "gpu_memory_utilization": gpu_memory_utilization,
-            "max_retries": resolved_max_retries,
+            "max_retries": max_retries,
             "max_pilot_movies": MAX_PILOT_MOVIES,
         },
     }

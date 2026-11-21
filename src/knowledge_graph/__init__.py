@@ -94,6 +94,7 @@ from .qwen_emotion_pilot import (
     MockQwenEmotionBackend,
     export_emotion_review_csv,
     run_qwen_emotion_pilot,
+    validate_and_resolve_max_retries,
 )
 
 __all__ = [
@@ -178,4 +179,5 @@ __all__ = [
     "MockQwenEmotionBackend",
     "export_emotion_review_csv",
     "run_qwen_emotion_pilot",
+    "validate_and_resolve_max_retries",
 ]
