@@ -18,12 +18,16 @@
 
 set -euo pipefail
 
+# Environment name is configurable via PLOTGRAPH_CONDA_ENV, defaulting to 'vllm312'
+CONDA_ENV="${PLOTGRAPH_CONDA_ENV:-vllm312}"
+
 echo "========================================================================"
 echo "          ASU SOL SLURM EXECUTION: PLOTGRAPH QWEN PILOT (PHASE 3D)"
 echo "========================================================================"
 echo "Job Name      : ${SLURM_JOB_NAME:-plotgraph_qwen_pilot}"
 echo "Job ID        : ${SLURM_JOB_ID:-manual}"
 echo "Compute Node  : $(hostname)"
+echo "Target Env    : ${CONDA_ENV}"
 echo "Execution Time: $(date)"
 echo "Working Dir   : $(pwd)"
 echo "========================================================================"
@@ -42,7 +46,7 @@ export VLLM_WORKER_MULTIPROC_METHOD=spawn
 echo "Hugging Face Cache Dir : ${HF_HOME}"
 mkdir -p "${HF_HOME}"
 
-# 3. Activate Conda Environment ('plotgraph')
+# 3. Activate Conda Environment
 # Robust activation based on Miniconda / Conda installation
 if [ -f "${HOME}/miniconda3/etc/profile.d/conda.sh" ]; then
     source "${HOME}/miniconda3/etc/profile.d/conda.sh"
@@ -57,8 +61,8 @@ elif command -v conda &> /dev/null; then
 fi
 
 if command -v conda &> /dev/null; then
-    echo "Activating Conda environment: plotgraph"
-    conda activate plotgraph
+    echo "Activating Conda environment: ${CONDA_ENV}"
+    conda activate "${CONDA_ENV}"
 elif [ -f ".venv/bin/activate" ]; then
     echo "Fallback: Activating local virtual environment: .venv"
     source .venv/bin/activate
@@ -68,7 +72,9 @@ fi
 
 # 4. Cluster & GPU Node Diagnostics
 echo ""
-echo "--- GPU Hardware Status (nvidia-smi) ---"
+echo "--- Environment & GPU Diagnostics ---"
+echo "Requested Conda Env : ${CONDA_ENV}"
+echo "Active Conda Env    : ${CONDA_DEFAULT_ENV:-none}"
 if command -v nvidia-smi &> /dev/null; then
     nvidia-smi
 else
@@ -78,15 +84,18 @@ fi
 echo ""
 echo "--- Python & CUDA Verification ---"
 python -c "
+import os
 import sys
-print(f'Python Version: {sys.version.split()[0]}')
+print(f'Active Conda Env : {os.environ.get(\"CONDA_DEFAULT_ENV\", \"none\")}')
+print(f'Python Executable: {sys.executable}')
+print(f'Python Version   : {sys.version.split()[0]}')
 try:
     import torch
-    print(f'PyTorch Version: {torch.__version__}')
-    print(f'CUDA Available : {torch.cuda.is_available()}')
+    print(f'PyTorch Version  : {torch.__version__}')
+    print(f'CUDA Available   : {torch.cuda.is_available()}')
     if torch.cuda.is_available():
-        print(f'GPU Device Name: {torch.cuda.get_device_name(0)}')
-        print(f'GPU Count      : {torch.cuda.device_count()}')
+        print(f'GPU Device Name  : {torch.cuda.get_device_name(0)}')
+        print(f'GPU Count        : {torch.cuda.device_count()}')
     else:
         print('WARNING: PyTorch cannot detect any CUDA GPUs.')
 except ImportError:
@@ -94,7 +103,7 @@ except ImportError:
 
 try:
     import vllm
-    print(f'vLLM Version   : {vllm.__version__}')
+    print(f'vLLM Version     : {vllm.__version__}')
 except ImportError:
     print('WARNING: vllm is not installed.')
 "

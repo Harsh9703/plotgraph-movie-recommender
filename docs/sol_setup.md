@@ -1,6 +1,6 @@
 # ASU SOL High-Performance Computing (HPC) Setup Guide
 
-This guide documents the procedure for executing the PlotGraph **Phase 3D Qwen2.5-7B-Instruct 30-Movie Pilot** on Arizona State University's SOL supercomputer using the known-working scheduler configuration for this account.
+This guide documents the procedure for executing the PlotGraph **Phase 3D Qwen2.5-7B-Instruct 30-Movie Pilot** on Arizona State University's SOL supercomputer using the known-working scheduler configuration and the existing `vllm312` GPU environment.
 
 ---
 
@@ -23,17 +23,34 @@ The batch script (`scripts/sol/kg_l_qwen_pilot.sbatch`) uses the verified SLURM 
 
 ---
 
-## 2. Interactive Environment Inspection & Setup
+## 2. Environment: Existing `vllm312` Conda Environment
 
-Do not install packages inside batch jobs. Inspect the actual available SOL environment interactively on the login node or an interactive session before running the batch job.
+This account on ASU SOL already has a verified, working Conda environment named **`vllm312`** with a fully compatible GPU stack. **Do not create another GPU environment.**
 
-### Step 2.1: Connect to ASU SOL via SSH
+### Environment Specifications
+- **Conda Environment**: `vllm312`
+- **Python Version**: `3.12.12`
+- **vLLM**: `0.10.2+cu129`
+- **PyTorch**: `2.8.0`
+- **CUDA Build**: `12.9`
+- **PlotGraph**: Installed in editable mode (`pip install -e .`) with all unit tests passing.
+
+The batch script automatically activates `vllm312` by default. You can override the target environment if desired by exporting `PLOTGRAPH_CONDA_ENV`:
+```bash
+export PLOTGRAPH_CONDA_ENV="vllm312"
+```
+
+---
+
+## 3. Interactive Connection & Verification Workflow
+
+### Step 3.1: Connect to ASU SOL via SSH
 
 ```bash
 ssh <ASURITE>@sol.asu.edu
 ```
 
-### Step 2.2: Clone or Sync the Repository
+### Step 3.2: Clone or Sync the Repository
 
 Clone or pull the latest repository branch on scratch storage:
 ```bash
@@ -42,34 +59,20 @@ git clone https://github.com/<your-repo>/plotgraph-movie-recommender.git
 cd plotgraph-movie-recommender
 ```
 
-### Step 2.3: Inspect Interactive Environment & Set Up Conda
+### Step 3.3: Activate Existing `vllm312` Environment
 
-Inspect your existing Miniconda or Conda installation on SOL:
-```bash
-# Check if conda or miniconda is present in your home directory
-which conda
-ls -d ~/miniconda3 ~/miniconda ~/.conda 2>/dev/null
-```
-
-If you have Miniconda installed, initialize your shell session:
+Initialize Conda from your Miniconda installation and activate `vllm312`:
 ```bash
 source ~/miniconda3/etc/profile.d/conda.sh
+conda activate vllm312
 ```
 
-Create and activate the `plotgraph` Conda environment:
+If you ever need to re-install or update the repository in editable mode within this environment:
 ```bash
-# Create dedicated Python 3.11 environment
-conda create -y -n plotgraph python=3.11
-conda activate plotgraph
-
-# Upgrade pip
-pip install --upgrade pip
-
-# Install project base and GPU dependencies (vLLM and PyTorch with CUDA)
-pip install -e ".[gpu]"
+pip install -e .
 ```
 
-### Step 2.4: Configure Hugging Face Cache on Scratch
+### Step 3.4: Configure Hugging Face Cache on Scratch
 
 Model weights for `Qwen/Qwen2.5-7B-Instruct` are ~15 GB. **Do not download them to your home directory (`~/.cache`)**, as `$HOME` has strict storage quotas.
 
@@ -81,9 +84,9 @@ mkdir -p "${HF_HOME}"
 ```
 *(The batch script `scripts/sol/kg_l_qwen_pilot.sbatch` also exports this automatically.)*
 
-### Step 2.5: Verify Python & GPU Stack Interactively
+### Step 3.5: Verify Python & GPU Stack Interactively
 
-Before submitting a batch job, verify that PyTorch, CUDA detection, and vLLM import cleanly inside the `plotgraph` environment:
+Before submitting a batch job, verify that PyTorch, CUDA detection, and vLLM import cleanly inside the `vllm312` environment:
 ```bash
 python -c "
 import sys
@@ -97,9 +100,9 @@ print('vLLM:', vllm.__version__)
 
 ---
 
-## 3. Submitting the SLURM Pilot Job
+## 4. Submitting the SLURM Pilot Job
 
-Once the `plotgraph` environment is configured and verified interactively, submit the pilot batch script:
+Submit the pilot batch script:
 
 ```bash
 sbatch scripts/sol/kg_l_qwen_pilot.sbatch
@@ -112,7 +115,7 @@ Submitted batch job <JOB_ID>
 
 ---
 
-## 4. Monitoring the Job
+## 5. Monitoring the Job
 
 ### Check Queue Status
 ```bash
@@ -131,7 +134,7 @@ cat logs/sol/plotgraph_qwen_pilot_<JOB_ID>.err
 
 ---
 
-## 5. Reviewing Pilot Artifacts
+## 6. Reviewing Pilot Artifacts
 
 When the job completes, verify the artifacts generated in `data/processed/ml-1m/kg_l/pilot/`:
 
@@ -160,7 +163,7 @@ wc -l data/processed/ml-1m/kg_l/pilot/failures.jsonl
 
 ---
 
-## 6. Local Development & Mock Testing (macOS / No GPU)
+## 7. Local Development & Mock Testing (macOS / No GPU)
 
 For local testing without GPU or model downloads:
 ```bash
