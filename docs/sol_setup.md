@@ -100,12 +100,18 @@ print('vLLM:', vllm.__version__)
 
 ---
 
-## 4. Submitting the SLURM Pilot Job
+## 4. Submitting the SLURM Pilot Jobs
 
-Submit the pilot batch script:
-
+### 4.1 Phase 3D Semantic+Emotion Pilot (Combined)
+Submit the semantic pilot batch script:
 ```bash
 sbatch scripts/sol/kg_l_qwen_pilot.sbatch
+```
+
+### 4.2 Phase 3E Dedicated Emotion Pilot (Evidence-Grounded)
+Submit the dedicated emotion extraction batch script:
+```bash
+sbatch scripts/sol/kg_l_qwen_emotion_pilot.sbatch
 ```
 
 The scheduler will print the job ID:
@@ -171,16 +177,41 @@ wc -l data/processed/ml-1m/kg_l/pilot_v1_1/validated_extractions.jsonl
 wc -l data/processed/ml-1m/kg_l/pilot_v1_1/failures.jsonl
 ```
 
+### 6.2 Reviewing Phase 3E Dedicated Emotion Artifacts
+
+When the dedicated emotion job completes, verify the artifacts generated in `data/processed/ml-1m/kg_l/emotion_pilot_v1/`:
+
+| Artifact | Format | Description |
+|---|---|---|
+| `raw_emotion_outputs.jsonl` | JSON Lines | Complete log of every raw response from Qwen for every emotion attempt. |
+| `validated_emotion_evidence.jsonl` | JSON Lines | Strictly validated `MovieEmotionExtraction` records with text evidence and calibrated scores. |
+| `emotion_vectors.jsonl` | JSON Lines | Derived clean 8-dimensional emotion vectors (`movie_id`, `movie_idx`, `title`, 8 emotion scores, `prominent_emotions`) ready for downstream KG-L graph building. |
+| `emotion_failures.jsonl` | JSON Lines | Records of any emotion extractions that exhausted retries. |
+| `emotion_pilot_summary.json` | JSON | Summary metrics: sample count (30), success count, retries, runtime, and success rate. |
+| `emotion_review.csv` | CSV | Human-readable inspection sheet with overview, per-emotion evidence lists, continuous scores, and prominent emotions (`score > 0.5`). |
+
+### 6.3 Three-Way Side-by-Side Emotion Comparison
+To compare emotion distributions and grounding across Combined v1.0, Combined v1.1, and Dedicated Emotion v1.0:
+```bash
+python scripts/compare_emotion_pilots.py \
+    --dir-v1-0 data/processed/ml-1m/kg_l/pilot \
+    --dir-v1-1 data/processed/ml-1m/kg_l/pilot_v1_1 \
+    --dir-emotion-v1 data/processed/ml-1m/kg_l/emotion_pilot_v1
+```
+
 ---
 
 ## 7. Local Development & Mock Testing (macOS / No GPU)
 
 For local testing without GPU or model downloads:
 ```bash
-# Run with default refined prompt (v1.1.0) outputting to pilot_v1_1:
+# Run Phase 3D semantic pilot with default refined prompt (v1.1.0):
 python scripts/run_phase3d_qwen_pilot.py --backend mock
 
 # Or explicitly select prompt version v1.0.0 outputting to pilot:
 python scripts/run_phase3d_qwen_pilot.py --backend mock --prompt-version v1.0.0
+
+# Run Phase 3E dedicated emotion pilot with evidence-grounded mock backend:
+python scripts/run_phase3e_emotion_pilot.py --backend mock
 ```
-This runs the complete safety guard, checkpointing, retry logic, summary generation, and review CSV export locally using mock responses.
+This runs the complete safety guard, checkpointing, retry logic, summary generation, derived vector export, and review CSV export locally using mock responses.

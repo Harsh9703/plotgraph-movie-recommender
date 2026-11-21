@@ -25,6 +25,15 @@ paths:
   pilot_summary_v1_1_json: "data/processed/ml-1m/kg_l/pilot_v1_1/pilot_summary.json"
   pilot_review_v1_1_csv: "data/processed/ml-1m/kg_l/pilot_v1_1/pilot_review.csv"
 
+  # Phase 3E dedicated evidence-grounded emotion pilot output paths
+  emotion_pilot_output_dir: "data/processed/ml-1m/kg_l/emotion_pilot_v1"
+  raw_emotion_outputs_jsonl: "data/processed/ml-1m/kg_l/emotion_pilot_v1/raw_outputs.jsonl"
+  validated_emotion_evidence_jsonl: "data/processed/ml-1m/kg_l/emotion_pilot_v1/validated_emotion_evidence.jsonl"
+  emotion_vectors_jsonl: "data/processed/ml-1m/kg_l/emotion_pilot_v1/emotion_vectors.jsonl"
+  emotion_failures_jsonl: "data/processed/ml-1m/kg_l/emotion_pilot_v1/failures.jsonl"
+  emotion_pilot_summary_json: "data/processed/ml-1m/kg_l/emotion_pilot_v1/pilot_summary.json"
+  emotion_review_csv: "data/processed/ml-1m/kg_l/emotion_pilot_v1/emotion_review.csv"
+
 ontology:
   semantic_relations:
     - hasTheme
@@ -51,6 +60,17 @@ llm:
   # Pilot inference parameters
   temperature: 0.0
   max_tokens: 1024
+  tensor_parallel_size: 1
+  gpu_memory_utilization: 0.90
+  max_retries: 1
+  max_pilot_movies: 30
+
+emotion_llm:
+  model_id: "Qwen/Qwen2.5-7B-Instruct"
+  emotion_prompt_version: "v1.0.0"
+  emotion_schema_version: "v1.0.0"
+  temperature: 0.0
+  max_tokens: 1536
   tensor_parallel_size: 1
   gpu_memory_utilization: 0.90
   max_retries: 1

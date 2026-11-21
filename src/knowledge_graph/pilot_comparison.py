@@ -293,3 +293,220 @@ def format_comparison_table(comparison_result: Dict[str, Any]) -> str:
     lines.append("=" * 84)
 
     return "\n".join(lines)
+
+
+# ==============================================================================
+# PHASE 3E: DEDICATED EVIDENCE-GROUNDED EMOTION PILOT COMPARISON
+# ==============================================================================
+
+def load_emotion_review_df(source: Union[str, Path, pd.DataFrame]) -> pd.DataFrame:
+    """Load and validate an emotion review DataFrame (from emotion_review.csv or pilot_review.csv).
+
+    Args:
+        source: Directory, CSV path, or DataFrame.
+
+    Returns:
+        Validated emotion review DataFrame.
+    """
+    if isinstance(source, pd.DataFrame):
+        df = source.copy()
+    else:
+        path = Path(source)
+        if path.is_dir():
+            # Check for emotion_review.csv first, then fallback to pilot_review.csv
+            csv_path = path / "emotion_review.csv"
+            if not csv_path.exists():
+                csv_path = path / "pilot_review.csv"
+            if not csv_path.exists():
+                raise FileNotFoundError(
+                    f"Neither emotion_review.csv nor pilot_review.csv found in directory: {path}"
+                )
+            df = pd.read_csv(csv_path)
+        elif path.is_file():
+            df = pd.read_csv(path)
+        else:
+            raise FileNotFoundError(f"Emotion review source path not found: {path}")
+
+    # Verify at least the status column and emotion score columns exist
+    if "status" not in df.columns:
+        raise ValueError("Emotion review DataFrame is missing required 'status' column.")
+
+    return df
+
+
+def compute_evidence_emotion_metrics(
+    source: Union[str, Path, pd.DataFrame],
+    emotion_threshold: float = DEFAULT_EMOTION_EDGE_THRESHOLD,
+) -> Dict[str, Any]:
+    """Compute descriptive emotion metrics and evidence integrity statistics.
+
+    Supports both dedicated emotion reviews (with {emotion}_evidence and {emotion}_score)
+    and legacy pilot reviews (with {emotion} as score columns).
+    """
+    df = load_emotion_review_df(source)
+    total_movies = len(df)
+    if total_movies == 0:
+        raise ValueError("Cannot compute metrics on an empty DataFrame.")
+
+    is_success = df["status"] == "SUCCESS"
+    successful_count = int(is_success.sum())
+    failed_count = total_movies - successful_count
+    schema_success_rate = round((successful_count / total_movies) * 100.0, 2)
+
+    df_valid = df[is_success]
+
+    has_evidence_cols = any(f"{emo}_evidence" in df.columns for emo in PLUTCHIK_EMOTIONS)
+
+    emotion_stats: Dict[str, Dict[str, Any]] = {}
+    prominent_counts = np.zeros(len(df_valid), dtype=int)
+
+    total_nonzero_scores = 0
+    nonzero_with_evidence = 0
+    total_zero_scores = 0
+    zero_with_empty_evidence = 0
+
+    for emo in PLUTCHIK_EMOTIONS:
+        # Score column name
+        score_col = f"{emo}_score" if f"{emo}_score" in df.columns else emo
+        evidence_col = f"{emo}_evidence"
+
+        scores = df_valid[score_col].astype(float).values if len(df_valid) > 0 else np.array([])
+        above_mask = scores > emotion_threshold
+        prominent_counts += above_mask.astype(int)
+
+        mean_val = float(np.mean(scores)) if len(scores) > 0 else 0.0
+        median_val = float(np.median(scores)) if len(scores) > 0 else 0.0
+        zero_cnt = int(np.sum(scores == 0.0))
+        above_cnt = int(np.sum(above_mask))
+
+        # Evidence count if present
+        if has_evidence_cols and evidence_col in df.columns:
+            evidence_counts = []
+            for score_val, ev_val in zip(df_valid[score_col].astype(float), df_valid[evidence_col]):
+                if pd.isna(ev_val) or not str(ev_val).strip():
+                    item_cnt = 0
+                else:
+                    item_cnt = len([s for s in str(ev_val).split(";") if s.strip()])
+                evidence_counts.append(item_cnt)
+
+                if score_val > 0.0:
+                    total_nonzero_scores += 1
+                    if item_cnt > 0:
+                        nonzero_with_evidence += 1
+                else:
+                    total_zero_scores += 1
+                    if item_cnt == 0:
+                        zero_with_empty_evidence += 1
+
+            avg_ev = round(float(np.mean(evidence_counts)), 2) if evidence_counts else 0.0
+        else:
+            avg_ev = None
+
+        emotion_stats[emo] = {
+            "mean": round(mean_val, 3),
+            "median": round(median_val, 3),
+            "zero_count": zero_cnt,
+            "count_above_threshold": above_cnt,
+            "avg_evidence_count": avg_ev,
+        }
+
+    movies_no_prominent = int(np.sum(prominent_counts == 0))
+
+    nonzero_pct = (
+        round((nonzero_with_evidence / total_nonzero_scores) * 100.0, 2)
+        if total_nonzero_scores > 0
+        else 100.0
+    )
+    zero_pct = (
+        round((zero_with_empty_evidence / total_zero_scores) * 100.0, 2)
+        if total_zero_scores > 0
+        else 100.0
+    )
+
+    return {
+        "total_movies": total_movies,
+        "successful_movies": successful_count,
+        "failed_movies": failed_count,
+        "schema_success_rate": schema_success_rate,
+        "movies_with_no_prominent_emotions": movies_no_prominent,
+        "has_evidence": has_evidence_cols,
+        "emotions": emotion_stats,
+        "evidence_integrity": {
+            "total_nonzero_scores": total_nonzero_scores,
+            "nonzero_with_evidence_count": nonzero_with_evidence,
+            "nonzero_with_evidence_pct": nonzero_pct,
+            "total_zero_scores": total_zero_scores,
+            "zero_with_empty_evidence_count": zero_with_empty_evidence,
+            "zero_with_empty_evidence_pct": zero_pct,
+        },
+    }
+
+
+def compare_three_way_emotion_pilots(
+    source_v1_0: Union[str, Path, pd.DataFrame],
+    source_v1_1: Union[str, Path, pd.DataFrame],
+    source_emotion_v1: Union[str, Path, pd.DataFrame],
+    name_v1_0: str = "Combined v1.0",
+    name_v1_1: str = "Combined v1.1",
+    name_emotion_v1: str = "Dedicated v1.0 (Evidence)",
+    emotion_threshold: float = DEFAULT_EMOTION_EDGE_THRESHOLD,
+) -> Dict[str, Any]:
+    """Compare three emotion extraction approaches side by side."""
+    m_1_0 = compute_evidence_emotion_metrics(source_v1_0, emotion_threshold=emotion_threshold)
+    m_1_1 = compute_evidence_emotion_metrics(source_v1_1, emotion_threshold=emotion_threshold)
+    m_emo = compute_evidence_emotion_metrics(source_emotion_v1, emotion_threshold=emotion_threshold)
+
+    return {
+        "pilot_v1_0": {"name": name_v1_0, "metrics": m_1_0},
+        "pilot_v1_1": {"name": name_v1_1, "metrics": m_1_1},
+        "emotion_pilot": {"name": name_emotion_v1, "metrics": m_emo},
+    }
+
+
+def format_three_way_emotion_table(comparison_result: Dict[str, Any]) -> str:
+    """Format three-way comparison into an informative, descriptive ASCII table."""
+    p1 = comparison_result["pilot_v1_0"]
+    p2 = comparison_result["pilot_v1_1"]
+    pe = comparison_result["emotion_pilot"]
+
+    n1, m1 = p1["name"], p1["metrics"]
+    n2, m2 = p2["name"], p2["metrics"]
+    ne, me = pe["name"], pe["metrics"]
+
+    lines: List[str] = [
+        "=" * 96,
+        "             THREE-WAY EMOTION PILOT COMPARISON REPORT (PHASE 3D vs 3E)",
+        "=" * 96,
+        f"{'Metric / Dimension':<36} {n1:>18} {n2:>18} {ne:>20}",
+        "-" * 96,
+        "OVERALL EXECUTION:",
+        f"  Total Movies Sampled               {m1['total_movies']:>18} {m2['total_movies']:>18} {me['total_movies']:>20}",
+        f"  Schema Success Rate                {m1['schema_success_rate']:>17.1f}% {m2['schema_success_rate']:>17.1f}% {me['schema_success_rate']:>19.1f}%",
+        f"  Movies with No Emotion > 0.5       {m1['movies_with_no_prominent_emotions']:>18} {m2['movies_with_no_prominent_emotions']:>18} {me['movies_with_no_prominent_emotions']:>20}",
+        "",
+        "EMOTIONS (Plutchik 8 Dimensions):",
+    ]
+
+    for emo in PLUTCHIK_EMOTIONS:
+        e1 = m1["emotions"][emo]
+        e2 = m2["emotions"][emo]
+        ee = me["emotions"][emo]
+        lines.append(f"  {emo}:")
+        lines.append(f"    Mean                             {e1['mean']:>18.3f} {e2['mean']:>18.3f} {ee['mean']:>20.3f}")
+        lines.append(f"    Median                           {e1['median']:>18.3f} {e2['median']:>18.3f} {ee['median']:>20.3f}")
+        lines.append(f"    Zero Count (score == 0.0)        {e1['zero_count']:>18} {e2['zero_count']:>18} {ee['zero_count']:>20}")
+        lines.append(f"    Prominent Count (score > 0.5)    {e1['count_above_threshold']:>18} {e2['count_above_threshold']:>18} {ee['count_above_threshold']:>20}")
+        if ee.get("avg_evidence_count") is not None:
+            lines.append(f"    Avg Evidence Items / Movie       {'N/A':>18} {'N/A':>18} {ee['avg_evidence_count']:>20.2f}")
+
+    lines.append("")
+    lines.append("EVIDENCE INTEGRITY (Dedicated Emotion Pilot):")
+    ei = me["evidence_integrity"]
+    lines.append(f"  Nonzero Scores with >= 1 Evidence Item : {ei['nonzero_with_evidence_pct']:.1f}% ({ei['nonzero_with_evidence_count']}/{ei['total_nonzero_scores']})")
+    lines.append(f"  Zero Scores with Empty Evidence []      : {ei['zero_with_empty_evidence_pct']:.1f}% ({ei['zero_with_empty_evidence_count']}/{ei['total_zero_scores']})")
+    lines.append("=" * 96)
+    lines.append("NOTE: This comparison is descriptive and intended to assist manual grounding review.")
+    lines.append("Higher emotion scores or density are NOT automatically defined as superior.")
+    lines.append("=" * 96)
+
+    return "\n".join(lines)

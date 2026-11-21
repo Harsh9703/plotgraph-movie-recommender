@@ -416,6 +416,64 @@ Monitor job output:
 tail -f logs/sol/plotgraph_qwen_pilot_<JOB_ID>.out
 ```
 
+---
+
+## Phase 3E: Dedicated Evidence-Grounded Emotion Extraction & Pilot
+
+Phase 3E introduces a dedicated, evidence-first extraction contract and pilot infrastructure for the 8 Plutchik emotions, separating emotional analysis from semantic extraction while preserving the exact KG-L ontology.
+
+### 1. Research Motivation & Separation Decision
+
+During Phase 3D real Qwen2.5-7B-Instruct pilots on ASU SOL, combined semantic + emotion prompts (v1.0.0 and refined v1.1.0) demonstrated that direct 8-dimensional emotion scoring was excessively sparse:
+- 24 of 30 movies had zero emotions with score > 0.5.
+- Mean scores across the pilot were severely depressed (`joy`: 0.027, `trust`: 0.020, `anger`: 0.037).
+- The model interpreted zero conservatively and struggled to calibrate 8 continuous numbers simultaneously while extracting multi-label themes, settings, and narrative devices.
+
+**Decision**:
+- Semantic extraction remains isolated using the verified Prompt v1.1.0 (`themes`, `settings`, `narrative_devices`, `protagonist_types`, `based_on`).
+- Emotion extraction is decoupled into a dedicated, evidence-first Qwen call.
+
+### 2. Evidence-First Emotion Schema & Verification Rules
+
+Defined in `src/knowledge_graph/emotion_contract.py`:
+- **Strict 8 Plutchik Dimensions**: Exactly `joy`, `trust`, `fear`, `surprise`, `sadness`, `disgust`, `anger`, `anticipation`. Unknown or extra keys are rejected with `extra="forbid"`.
+- **Evidence-Score Consistency**:
+  - Score > 0.0 **strictly requires** $\ge 1$ supporting text evidence snippet directly grounded in the overview.
+  - Score == 0.0 **strictly requires** an empty evidence list `[]`. Providing evidence with score 0.0 or assigning score > 0.0 without evidence fails schema validation.
+- **Two-Step Prompt Structure**:
+  1. *Step 1: Evidence Identification*: Identify concrete plot facts and narrative events evoking each emotion.
+  2. *Step 2: Calibrated Intensity Assignment*: Assign intensity in $[0.0, 1.0]$ based strictly on the identified evidence.
+
+### 3. Dual Artifact Model (Provenance + Downstream Graph)
+
+Phase 3E generates two complementary output formats under `data/processed/ml-1m/kg_l/emotion_pilot_v1/`:
+1. `validated_emotion_evidence.jsonl`: Rich evidence records with exact text quotes and scores for complete auditability.
+2. `emotion_vectors.jsonl`: Lean, validated 8-dimensional float vectors (`movie_id`, `movie_idx`, `title`, 8 emotion scores, `prominent_emotions`) directly consumable by downstream KG-L graph builders without re-parsing evidence.
+3. `emotion_review.csv`: Human-inspection sheet displaying overview, per-emotion evidence lists, continuous scores, and prominent emotions (`score > 0.5`).
+
+### 4. Running the Phase 3E Dedicated Emotion Pilot
+
+#### Locally (Mock Backend):
+```bash
+python scripts/run_phase3e_emotion_pilot.py --backend mock
+```
+
+#### On ASU SOL GPU Compute (via SLURM):
+```bash
+sbatch scripts/sol/kg_l_qwen_emotion_pilot.sbatch
+```
+
+### 5. Multi-Pilot Emotion Comparison Tool
+
+To evaluate emotion distributions, prominent emotion frequencies, and evidence integrity across Phase 3D and Phase 3E pilots:
+```bash
+python scripts/compare_emotion_pilots.py \
+    --dir-v1-0 data/processed/ml-1m/kg_l/pilot \
+    --dir-v1-1 data/processed/ml-1m/kg_l/pilot_v1_1 \
+    --dir-emotion-v1 data/processed/ml-1m/kg_l/emotion_pilot_v1
+```
+
+
 
 
 

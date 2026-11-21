@@ -75,6 +75,25 @@ from .pilot_comparison import (
     compute_pilot_metrics,
     compare_pilot_runs,
     format_comparison_table,
+    load_emotion_review_df,
+    compute_evidence_emotion_metrics,
+    compare_three_way_emotion_pilots,
+    format_three_way_emotion_table,
+)
+from .emotion_contract import (
+    EmotionEvidenceScore,
+    PlutchikEmotionEvidenceMap,
+    MovieEmotionExtraction,
+    format_emotion_prompt,
+    parse_and_validate_emotion_extraction,
+    EMOTION_PROMPT_VERSION_V1_0_0,
+    DEFAULT_EMOTION_PROMPT_VERSION,
+    DEFAULT_EMOTION_SCHEMA_VERSION,
+)
+from .qwen_emotion_pilot import (
+    MockQwenEmotionBackend,
+    export_emotion_review_csv,
+    run_qwen_emotion_pilot,
 )
 
 __all__ = [
@@ -144,4 +163,19 @@ __all__ = [
     "compute_pilot_metrics",
     "compare_pilot_runs",
     "format_comparison_table",
+    "load_emotion_review_df",
+    "compute_evidence_emotion_metrics",
+    "compare_three_way_emotion_pilots",
+    "format_three_way_emotion_table",
+    "EmotionEvidenceScore",
+    "PlutchikEmotionEvidenceMap",
+    "MovieEmotionExtraction",
+    "format_emotion_prompt",
+    "parse_and_validate_emotion_extraction",
+    "EMOTION_PROMPT_VERSION_V1_0_0",
+    "DEFAULT_EMOTION_PROMPT_VERSION",
+    "DEFAULT_EMOTION_SCHEMA_VERSION",
+    "MockQwenEmotionBackend",
+    "export_emotion_review_csv",
+    "run_qwen_emotion_pilot",
 ]
