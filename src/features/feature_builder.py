@@ -18,10 +18,10 @@ import numpy as np
 import pandas as pd
 
 from .constants import (
-    ALL_COLUMNS,
     CANDIDATE_EMOTION_FEATURES,
     KGL_CATEGORIES,
     KGM_CATEGORIES,
+    PHASE4A_COLUMNS,
     PLUTCHIK_EMOTIONS,
     USER_EMOTION_FEATURES,
 )
@@ -331,7 +331,7 @@ def validate_candidate_features(
     )
 
     # 4. Column coverage
-    missing_cols = set(ALL_COLUMNS) - set(features_df.columns)
+    missing_cols = set(PHASE4A_COLUMNS) - set(features_df.columns)
     assert not missing_cols, f"Features DataFrame is missing expected columns: {missing_cols}"
 
     # 5. Non-null assertions on identifiers and base features

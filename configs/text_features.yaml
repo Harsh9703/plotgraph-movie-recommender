@@ -1,0 +1,46 @@
+# ==============================================================================
+# PlotGraph Phase 4B: Text Semantic Features Configuration
+# ==============================================================================
+
+# Input dataset paths
+input_paths:
+  phase4a_features: "data/processed/ml-1m/features/kg_candidate_features.parquet"
+  metadata: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
+  train_split: "data/processed/ml-1m/splits/train.parquet"
+
+# Output artifact paths
+output_paths:
+  features_parquet: "data/processed/ml-1m/features/kg_text_candidate_features.parquet"
+  features_summary: "data/processed/ml-1m/features/text_feature_summary.json"
+  text_embeddings_dir: "data/processed/ml-1m/features/text_embeddings"
+  tfidf_dir: "data/processed/ml-1m/features/tfidf"
+
+# TF-IDF vectorizer configuration
+tfidf:
+  ngram_range: [1, 2]
+  min_df: 2
+  max_df: 0.8
+  stop_words: "english"
+  sublinear_tf: false
+
+# Sentence-BERT embedding configuration
+sbert:
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  batch_size: 64
+  device: "cpu"
+
+# Recency weighting policy (strictly aligned with Phase 4A)
+recency:
+  half_life_days: 365.0
+  decay_type: "half_life"  # formulation: 0.5 ** (age_days / half_life_days)
+
+# Positive feedback threshold
+filtering:
+  positive_threshold: 4.0  # rating >= 4.0 / positive == 1
+
+# Optional FAISS index
+faiss:
+  enabled: true
+
+# Deterministic seed
+seed: 42

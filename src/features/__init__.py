@@ -1,7 +1,7 @@
-"""PlotGraph Features Package (Phase 4A).
+"""PlotGraph Features Package (Phases 4A & 4B).
 
-Leakage-safe KG-M, KG-L, and continuous emotion feature engineering
-for candidate reranking.
+Leakage-safe KG-M, KG-L semantic, continuous emotion, and text-semantic (TF-IDF + SBERT)
+feature engineering for candidate reranking.
 """
 
 from .constants import (
@@ -24,12 +24,28 @@ from .constants import (
     KGM_FEATURES,
     KGM_OVERLAP_FEATURES,
     OVERLAP_COUNT_FEATURES,
+    PHASE4A_COLUMNS,
+    PHASE4A_FEATURES,
     PLUTCHIK_EMOTIONS,
+    SBERT_FEATURES,
+    TEXT_FEATURES,
+    TFIDF_FEATURES,
     USER_EMOTION_FEATURES,
 )
 from .feature_builder import build_candidate_features, validate_candidate_features
 from .movie_indexer import MovieEntityIndex, MovieMetadataItem
 from .summary import generate_feature_summary, save_feature_summary
+from .text_encoder import FAISSIndexHelper, SBERTMovieEncoder, TFIDFMovieEncoder
+from .text_feature_builder import (
+    build_text_candidate_features,
+    validate_text_candidate_features,
+)
+from .text_profiler import (
+    TextUserProfile,
+    TextUserProfileIndex,
+    build_text_user_profiles,
+)
+from .text_summary import generate_text_feature_summary, save_text_feature_summary
 from .user_profiler import (
     UserProfile,
     UserProfileIndex,
@@ -59,7 +75,12 @@ __all__ = [
     "KGM_FEATURES",
     "KGM_OVERLAP_FEATURES",
     "OVERLAP_COUNT_FEATURES",
+    "PHASE4A_COLUMNS",
+    "PHASE4A_FEATURES",
     "PLUTCHIK_EMOTIONS",
+    "SBERT_FEATURES",
+    "TEXT_FEATURES",
+    "TFIDF_FEATURES",
     "USER_EMOTION_FEATURES",
     # Movie Indexer
     "MovieEntityIndex",
@@ -70,10 +91,21 @@ __all__ = [
     "build_user_profiles",
     "compute_age_days",
     "compute_recency_weight",
-    # Feature Builder
+    # Feature Builder (Phase 4A)
     "build_candidate_features",
     "validate_candidate_features",
-    # Summary
+    # Text Encoders & Profiler (Phase 4B)
+    "TFIDFMovieEncoder",
+    "SBERTMovieEncoder",
+    "FAISSIndexHelper",
+    "TextUserProfile",
+    "TextUserProfileIndex",
+    "build_text_user_profiles",
+    "build_text_candidate_features",
+    "validate_text_candidate_features",
+    # Summaries
     "generate_feature_summary",
     "save_feature_summary",
+    "generate_text_feature_summary",
+    "save_text_feature_summary",
 ]

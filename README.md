@@ -98,6 +98,7 @@ The test suite covers:
 19. `tests/test_qwen_production.py`: Production chunk/range partitioning, eligible movie filtering, mock batch alignment, independent task checkpointing/resumption, and runtime estimation.
 20. `tests/test_kg_l_builder.py`: KG-M/KG-L movie URI identity, semantic canonicalization, edge selection boundary (`score > 0.3`), continuous score/evidence representation, Turtle round-trip preservation, KGLQueryEngine SPARQL queries, KG-M + KG-L cross-graph compatibility, and error categorization regression.
 21. `tests/test_features.py`: Recency weighting exponential decay, positive-only train extraction, leakage guards rejecting VAL/TEST, user profile normalization, KG-M/KG-L affinities and overlap counts, continuous 8D emotion compatibility metrics, missingness handling, candidate integrity preservation, feature groups, and real artifact validation.
+22. `tests/test_text_features.py`: Deterministic TF-IDF overview vectorization, SBERT dense encoding on CPU, FAISS IndexFlatIP and NumPy fallback nearest-neighbor search, leakage guards rejecting VAL/TEST in text user profiles, recency weighting and unit L2 normalization, dot product and cosine similarity equivalence, missing text NaN handling, and full candidate matrix schema preservation.
 
 ---
 
@@ -710,6 +711,58 @@ Output Artifacts:
 - `data/processed/ml-1m/features/kg_candidate_features.parquet` (38.24 MB, 604,000 rows, 60 columns).
 - `data/processed/ml-1m/features/kg_feature_summary.json`: Detailed descriptive statistics, coverage, missingness, and leakage verification report.
 - `data/processed/ml-1m/features/user_profiles/`: Reusable user profile artifacts (`user_emotion_profiles.parquet`, `user_kgm_profiles.json`, `user_kgl_profiles.json`).
+
+---
+
+## Phase 4B: Leakage-Safe Text-Semantic Features (TF-IDF & SBERT)
+
+Phase 4B enriches every candidate row in Phase 4A's candidate feature table with text-semantic compatibility features derived from movie plot overviews.
+
+### 1. Strict Temporal & Data Leakage Protocol
+- **TRAIN-Only Profiles**: Text-semantic user profiles are constructed **strictly from positive interactions** in the TRAIN split (`rating >= 4.0` / `positive == 1`).
+- **Zero Leakage from VAL & TEST**: VAL and TEST interactions, timestamps, and ratings are strictly excluded from user profile construction. Assertions reject any input DataFrame containing validation or test columns.
+- **Reference Timestamps & Recency Decay**: Identical to Phase 4A, interaction age is computed relative to the user's latest positive TRAIN interaction $t_{u, \max}$:
+  $$\text{age\_days} = \frac{t_{u, \max} - t}{86400.0}, \qquad w(u, i) = 0.5^{(\text{age\_days} / \text{half\_life\_days})}$$
+  with default $\text{half\_life\_days} = 365.0$.
+
+### 2. Overview Encoders & Text Representation
+- **TF-IDF Sparse Representation**:
+  - Unigram + bigram TF-IDF vectorizer (`ngram_range=(1, 2)`, `min_df=2`, `max_df=0.8`, `stop_words='english'`).
+  - Fit across 3,810 usable catalog movie overviews, constructing a vocabulary of 14,541 terms.
+  - Rows are unit L2-normalized: $\|\mathbf{v}_{\text{tfidf}}\|_2 = 1.0$.
+- **Sentence-BERT (SBERT) Dense Representation**:
+  - Compact sentence transformer `sentence-transformers/all-MiniLM-L6-v2` executed on CPU with batch size 64.
+  - Generates 384-dimensional dense semantic embeddings for all 3,810 usable movie overviews.
+  - Embeddings are unit L2-normalized: $\|\mathbf{v}_{\text{sbert}}\|_2 = 1.0$.
+- **Dot Product & Cosine Similarity Equivalence**:
+  - Because both user profile vectors and candidate movie vectors are strictly unit L2-normalized ($\|\mathbf{u}\|_2 = 1.0, \|\mathbf{v}\|_2 = 1.0$), the dot product $\mathbf{u} \cdot \mathbf{v}$ exactly equals the cosine similarity:
+    $$\cos(\mathbf{u}, \mathbf{v}) = \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\|_2 \|\mathbf{v}\|_2} = \mathbf{u} \cdot \mathbf{v} \in [-1.0, 1.0]$$
+- **Nearest-Neighbor Retrieval via FAISS / NumPy**:
+  - An optional `faiss.IndexFlatIP` index (with automatic vectorized NumPy fallback) indexes catalog embeddings for fast nearest-neighbor semantic search (e.g., querying *Toy Story (1995)* yields *Toy Story 2 (1999)* with cosine similarity 0.7401).
+
+### 3. Feature Definitions (8 New Columns, 68 Total Columns)
+The candidate table preserves all 604,000 rows and all 60 Phase 4A columns, appending 8 new text-semantic features:
+1. `tfidf_cosine_similarity`: Cosine similarity between recency-weighted user TF-IDF profile and candidate overview TF-IDF vector.
+2. `tfidf_dot_product`: Dot product of unit-normalized user and candidate TF-IDF vectors (identically equal to cosine similarity).
+3. `tfidf_candidate_available`: Binary flag (1 if candidate movie has a valid plot overview, 0 if missing).
+4. `tfidf_user_profile_available`: Binary flag (1 if user has $\ge 1$ positive TRAIN movie with a valid overview, 0 if inactive or text-empty).
+5. `sbert_cosine_similarity`: Cosine similarity between recency-weighted user SBERT profile and candidate overview SBERT embedding.
+6. `sbert_dot_product`: Dot product of unit-normalized user and candidate SBERT embeddings (identically equal to cosine similarity).
+7. `sbert_candidate_available`: Binary flag (1 if candidate movie has a valid plot overview, 0 if missing).
+8. `sbert_user_profile_available`: Binary flag (1 if user has $\ge 1$ positive TRAIN movie with a valid overview, 0 if inactive or text-empty).
+
+**Missingness Handling**: When a movie lacks a plot overview (73 movies in catalog, 0.55% of candidate rows) or a user has no positive overview history, similarity and dot product values are stored as `NaN` (natively handled by gradient boosted decision trees like LightGBM), paired with 0 in the availability flags.
+
+### 4. Running Phase 4B Pipeline
+```bash
+python scripts/run_phase4b_text_features.py --config configs/text_features.yaml
+```
+
+Output Artifacts:
+- `data/processed/ml-1m/features/kg_text_candidate_features.parquet`: Full feature table (49.62 MB, exactly 604,000 rows, 68 columns).
+- `data/processed/ml-1m/features/text_feature_summary.json`: Detailed missingness, coverage, and similarity distribution report.
+- `data/processed/ml-1m/features/text_embeddings/`: Cached SBERT embeddings (`movie_sbert_embeddings.npy`, `sbert_has_embedding_mask.npy`).
+- `data/processed/ml-1m/features/tfidf/`: Cached TF-IDF artifacts (`tfidf_vectorizer.joblib`, `movie_tfidf_matrix.npz`, `tfidf_has_text_mask.npy`).
 
 
 

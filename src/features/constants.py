@@ -161,6 +161,33 @@ ALL_KG_FEATURES: List[str] = (
     KGM_FEATURES + KGL_SEMANTIC_FEATURES + EMOTION_FEATURES
 )
 
-ALL_FEATURES: List[str] = BASE_FEATURES + ALL_KG_FEATURES
+# -----------------------------------------------------------------------------
+# Phase 4B: Text Semantic Feature Groups
+# -----------------------------------------------------------------------------
+
+TFIDF_FEATURES: List[str] = [
+    "tfidf_cosine_similarity",
+    "tfidf_dot_product",
+    "tfidf_candidate_available",
+    "tfidf_user_profile_available",
+]
+
+SBERT_FEATURES: List[str] = [
+    "sbert_cosine_similarity",
+    "sbert_dot_product",
+    "sbert_candidate_available",
+    "sbert_user_profile_available",
+]
+
+TEXT_FEATURES: List[str] = TFIDF_FEATURES + SBERT_FEATURES
+
+# -----------------------------------------------------------------------------
+# Combined Feature Groups
+# -----------------------------------------------------------------------------
+
+PHASE4A_FEATURES: List[str] = BASE_FEATURES + ALL_KG_FEATURES
+PHASE4A_COLUMNS: List[str] = IDENTIFIER_COLUMNS + PHASE4A_FEATURES
+
+ALL_FEATURES: List[str] = BASE_FEATURES + ALL_KG_FEATURES + TEXT_FEATURES
 
 ALL_COLUMNS: List[str] = IDENTIFIER_COLUMNS + ALL_FEATURES
