@@ -668,7 +668,14 @@ def categorize_extraction_error(error: Optional[Exception], raw_text: str) -> st
 
     if isinstance(error, ExtractionValidationError):
         err_msg = str(error).lower()
-        if "mismatch" in err_msg or "id" in err_msg:
+        # Explicit identifier mismatch detection (avoid matching 'evidence', 'valid', etc.)
+        if any(pattern in err_msg for pattern in [
+            "movie_id mismatch",
+            "movie_idx mismatch",
+            "tmdb_id mismatch",
+            "id mismatch",
+            "identifier mismatch",
+        ]):
             return "id_mismatch"
         return "schema_validation_error"
 

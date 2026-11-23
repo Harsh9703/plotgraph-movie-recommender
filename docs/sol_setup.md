@@ -264,3 +264,16 @@ After completion, run the validation utility to ensure 100% accounting and zero 
 python scripts/run_phase3f_full_extraction.py --config configs/kg_l.yaml --validate-only
 ```
 
+---
+
+## 9. Syncing Artifacts Locally & Phase 3G Graph Construction
+
+Once the Phase 3F production run completes on SOL:
+1. Sync `data/processed/ml-1m/kg_l/full_extraction/` back to the local repository.
+2. Construct and validate the production KG-L knowledge graph locally:
+   ```bash
+   python scripts/run_phase3g_kg_l.py --config configs/kg_l.yaml
+   ```
+   This generates `data/processed/ml-1m/graphs/kg_l.ttl` (97,904 RDF triples) and `data/processed/ml-1m/graphs/kg_l_validation.json` without requiring GPU compute.
+
+

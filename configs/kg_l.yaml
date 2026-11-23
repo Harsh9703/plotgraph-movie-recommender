@@ -47,6 +47,10 @@ paths:
   production_semantic_validated_parquet: "data/processed/ml-1m/kg_l/full_extraction/semantic_validated.parquet"
   production_emotion_vectors_parquet: "data/processed/ml-1m/kg_l/full_extraction/emotion_vectors.parquet"
 
+  # Phase 3G KG-L Graph Artifacts
+  kg_l_ttl: "data/processed/ml-1m/graphs/kg_l.ttl"
+  kg_l_validation_json: "data/processed/ml-1m/graphs/kg_l_validation.json"
+
 ontology:
   semantic_relations:
     - hasTheme

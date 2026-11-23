@@ -93,6 +93,10 @@ The test suite covers:
 14. `tests/test_kg_m.py`: Deterministic entity/movie URI canonicalization, Unicode handling, synthetic graph construction, missing metadata handling, Turtle round-trip preservation, SPARQL query engine helpers, and real KG-M graph validation.
 15. `tests/test_kg_l_contract.py`: Fixed ontology relations (6), exact 8 Plutchik emotions, strict Pydantic extraction schema, duplicate/blank entity handling, markdown-fenced JSON extraction/recovery, deterministic prompt templates, and sample export validity.
 16. `tests/test_qwen_pilot.py`: Pilot safety guard enforcement, mock inference execution, checkpointing/resumption, retry logic and error logging, summary generation, and review CSV export.
+17. `tests/test_emotion_contract.py`: Evidence-grounded emotion extraction schema, Plutchik emotion taxonomy, calibration bounds, and prompt formatting.
+18. `tests/test_emotion_pilot.py`: Dedicated emotion pilot execution, mock backend, safety guards, retry configuration resolution, and three-way comparative evaluation.
+19. `tests/test_qwen_production.py`: Production chunk/range partitioning, eligible movie filtering, mock batch alignment, independent task checkpointing/resumption, and runtime estimation.
+20. `tests/test_kg_l_builder.py`: KG-M/KG-L movie URI identity, semantic canonicalization, edge selection boundary (`score > 0.3`), continuous score/evidence representation, Turtle round-trip preservation, KGLQueryEngine SPARQL queries, KG-M + KG-L cross-graph compatibility, and error categorization regression.
 
 ---
 
@@ -556,6 +560,83 @@ sbatch scripts/sol/kg_l_qwen_full_extraction.sbatch
 ```bash
 python scripts/run_phase3f_full_extraction.py --config configs/kg_l.yaml --validate-only
 ```
+
+---
+
+## Phase 3G: KG-L Knowledge Graph Construction & Cross-Graph Integration
+
+Phase 3G constructs the LLM-enriched knowledge graph (**KG-L**) in RDF/Turtle format using the verified Phase 3F production extraction artifacts and Phase 3A metadata reference, establishing seamless cross-graph compatibility with **KG-M**.
+
+### 1. Goals & Architectural Principles
+- **No Extra Inference**: Pure RDF graph construction from existing frozen JSONL extractions and Parquet metadata.
+- **100% Movie URI Alignment**: Movie URIs strictly match KG-M via `build_movie_uri_index(df_meta)` (`movie_tmdb_{tmdb_id}` for unique TMDB IDs, `movie_tmdb_{tmdb_id}_ml_{movie_id}` for duplicates, and `movie_ml_{movie_id}` for unmapped titles).
+- **Fixed KG-L Ontology**:
+  - Classes: `pgo:Movie`, `pgo:Theme`, `pgo:Setting`, `pgo:NarrativeDevice`, `pgo:ProtagonistType`, `pgo:SourceMaterial`, `pgo:Emotion`, `pgo:EmotionAssociation`.
+  - Semantic Predicates: `pgo:hasTheme`, `pgo:hasSetting`, `pgo:hasNarrativeDevice`, `pgo:hasProtagonistType`, `pgo:basedOn`.
+  - Emotion Predicates: `pgo:evokesEmotion`, `pgo:hasEmotionAssociation`, `pgo:associatedEmotion`, `pgo:emotionIntensity`, `pgo:supportingEvidence`.
+- **Emotion Threshold Semantics (`score > 0.3`)**:
+  - Direct `pgo:evokesEmotion` triples are created strictly when an emotion score exceeds 0.3 (moderate, strong, or dominant signal). Exactly 5,452 direct triples generated.
+- **Continuous Score & Evidence Provenance**:
+  - Continuous intensity scores in $[0.0, 1.0]$ and supporting plot quote evidence strings are modeled via reified `pgo:EmotionAssociation` resources attached to movies via `pgo:hasEmotionAssociation`.
+  - Exactly 8 singleton `pgo:Emotion` resources (`pgo:emotion_joy`, `pgo:emotion_trust`, etc.) based on Plutchik's taxonomy.
+- **Handling of Failed Extractions**:
+  - The 22 movies that failed emotion extraction retain their valid semantic extractions, but produce zero emotion triples.
+
+### 2. Production Graph Statistics (`data/processed/ml-1m/graphs/kg_l.ttl`)
+- **Total RDF Triples**: **97,904**
+- **Total Distinct Entities**: **16,556**
+- **Entity Counts by Class**:
+  - `pgo:Movie`: 3,810
+  - `pgo:Theme`: 2,563
+  - `pgo:Setting`: 2,287
+  - `pgo:NarrativeDevice`: 365
+  - `pgo:ProtagonistType`: 1,899
+  - `pgo:SourceMaterial`: 172
+  - `pgo:Emotion`: 8
+  - `pgo:EmotionAssociation`: 5,452
+- **Semantic Relation Triples**:
+  - `pgo:hasTheme`: 7,181
+  - `pgo:hasSetting`: 4,330
+  - `pgo:hasNarrativeDevice`: 1,419
+  - `pgo:hasProtagonistType`: 4,894
+  - `pgo:basedOn`: 407
+- **Per-Emotion `evokesEmotion` Edges (`score > 0.3`)**:
+  | Emotion | Edge Count |
+  |---|---|
+  | `joy` | 589 |
+  | `trust` | 201 |
+  | `fear` | 1,028 |
+  | `surprise` | 595 |
+  | `sadness` | 731 |
+  | `disgust` | 350 |
+  | `anger` | 543 |
+  | `anticipation` | 1,415 |
+  | **Total** | **5,452** |
+- **Catalog Coverage**:
+  - Movies with $\ge 1$ emotion edge: 2,870 (75.33% of catalog; 75.77% of valid extractions)
+  - Movies with 0 emotion edges: 940 (918 with all scores $\le 0.3$, plus 22 failed extractions)
+  - Theme Coverage: 99.76% (3,801 movies)
+  - Setting Coverage: 99.87% (3,805 movies)
+  - Narrative Device Coverage: 36.48% (1,390 movies)
+  - Protagonist Type Coverage: 95.43% (3,636 movies)
+  - Source Material Coverage: 10.39% (396 movies)
+
+### 3. SPARQL Query Engine (`KGLQueryEngine`) & Cross-Graph Compatibility
+The query engine (`src/knowledge_graph/kg_l_query_engine.py`) provides 14 SPARQL query methods:
+- Direct lookups: themes, settings, narrative devices, protagonist types, source materials, continuous emotions, and plot quote evidence.
+- Inverted index lookups: finding movies by theme or emotion (ranked by intensity).
+- Path finding: discovering shared semantic entities and shared emotional profiles between movie pairs.
+- **Cross-Graph Joining**: Demonstrates seamless union of KG-M (metadata, genres, cast/crew) and KG-L (themes, emotions, narrative devices) in a single RDF graph (204,704 triples), enabling multi-hop path traversal such as:
+  $$\text{Movie A} \xrightarrow{\text{hasGenre}} \text{Genre} \xleftarrow{\text{hasGenre}} \text{Movie B} \quad \land \quad \text{Movie A} \xrightarrow{\text{hasTheme}} \text{Theme} \xleftarrow{\text{hasTheme}} \text{Movie B}$$
+
+### 4. Running Phase 3G
+```bash
+python scripts/run_phase3g_kg_l.py --config configs/kg_l.yaml
+```
+Outputs:
+- `data/processed/ml-1m/graphs/kg_l.ttl`: Production KG-L Turtle graph (4.19 MB).
+- `data/processed/ml-1m/graphs/kg_l_validation.json`: Complete validation report and statistics.
+
 
 
 

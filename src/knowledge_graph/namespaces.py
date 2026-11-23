@@ -5,8 +5,9 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
-from typing import Optional
+from typing import Any, Dict, Optional, Set, Tuple
 
+import pandas as pd
 from rdflib import Graph, Namespace, RDF, RDFS, URIRef, XSD
 
 # Primary PlotGraph Namespaces
@@ -25,7 +26,7 @@ STANDARD_PREFIXES = {
     "xsd": XSD,
 }
 
-# Ontology Classes
+# Ontology Classes (KG-M Metadata)
 CLASS_MOVIE = PGO.Movie
 CLASS_GENRE = PGO.Genre
 CLASS_PERSON = PGO.Person
@@ -33,13 +34,34 @@ CLASS_KEYWORD = PGO.Keyword
 CLASS_COLLECTION = PGO.Collection
 CLASS_RELEASE_DECADE = PGO.ReleaseDecade
 
-# Ontology Predicates (Relations)
+# Ontology Classes (KG-L LLM-Enriched)
+CLASS_THEME = PGO.Theme
+CLASS_SETTING = PGO.Setting
+CLASS_NARRATIVE_DEVICE = PGO.NarrativeDevice
+CLASS_PROTAGONIST_TYPE = PGO.ProtagonistType
+CLASS_SOURCE_MATERIAL = PGO.SourceMaterial
+CLASS_EMOTION = PGO.Emotion
+CLASS_EMOTION_ASSOCIATION = PGO.EmotionAssociation
+
+# Ontology Predicates (KG-M Relations)
 PRED_HAS_GENRE = PGO.hasGenre
 PRED_DIRECTED_BY = PGO.directedBy
 PRED_STARS_ACTOR = PGO.starsActor
 PRED_HAS_KEYWORD = PGO.hasKeyword
 PRED_IN_COLLECTION = PGO.inCollection
 PRED_RELEASE_DECADE = PGO.releaseDecade
+
+# Ontology Predicates (KG-L Relations)
+PRED_HAS_THEME = PGO.hasTheme
+PRED_HAS_SETTING = PGO.hasSetting
+PRED_HAS_NARRATIVE_DEVICE = PGO.hasNarrativeDevice
+PRED_HAS_PROTAGONIST_TYPE = PGO.hasProtagonistType
+PRED_BASED_ON = PGO.basedOn
+PRED_EVOKES_EMOTION = PGO.evokesEmotion
+PRED_HAS_EMOTION_ASSOCIATION = PGO.hasEmotionAssociation
+PRED_ASSOCIATED_EMOTION = PGO.associatedEmotion
+PRED_EMOTION_INTENSITY = PGO.emotionIntensity
+PRED_SUPPORTING_EVIDENCE = PGO.supportingEvidence
 
 # Ontology Predicates (Literals / Attributes)
 PRED_TITLE = PGO.title
@@ -142,3 +164,50 @@ def build_movie_uri(
         return PGR[f"movie_tmdb_{int(tmdb_id)}_ml_{int(movie_id)}"]
     else:
         return PGR[f"movie_ml_{int(movie_id)}"]
+
+
+def get_duplicate_tmdb_ids(df: pd.DataFrame) -> Set[int]:
+    """Detect duplicate TMDB IDs across distinct MovieLens catalog movies.
+
+    Args:
+        df: Metadata DataFrame containing 'tmdb_id'.
+
+    Returns:
+        Set of integer TMDB IDs that appear more than once.
+    """
+    if "tmdb_id" not in df.columns:
+        return set()
+    tmdb_series = df["tmdb_id"].dropna()
+    dup_series = tmdb_series[tmdb_series.duplicated()]
+    if dup_series.empty:
+        return set()
+    return set(df.loc[df["tmdb_id"].isin(dup_series), "tmdb_id"].astype(int).unique())
+
+
+def build_movie_uri_index(metadata_df: pd.DataFrame) -> Tuple[Dict[int, URIRef], Dict[int, URIRef]]:
+    """Build deterministic mapping from movie_id and movie_idx to Movie URIRef.
+
+    Ensures 100% identical movie URI generation across KG-M and KG-L by reusing
+    the identical disambiguation rules for duplicate TMDB IDs.
+
+    Args:
+        metadata_df: Full catalog DataFrame (from movies_with_tmdb.parquet).
+
+    Returns:
+        Tuple of (movie_uri_by_id, movie_uri_by_idx).
+    """
+    dup_tmdb_ids = get_duplicate_tmdb_ids(metadata_df)
+    uri_by_id: Dict[int, URIRef] = {}
+    uri_by_idx: Dict[int, URIRef] = {}
+
+    for _, row in metadata_df.iterrows():
+        movie_id = int(row["movie_id"])
+        movie_idx = int(row["movie_idx"])
+        tmdb_id = int(row["tmdb_id"]) if pd.notna(row.get("tmdb_id")) else None
+        is_dup = (tmdb_id in dup_tmdb_ids) if tmdb_id is not None else False
+        uri = build_movie_uri(movie_id=movie_id, tmdb_id=tmdb_id, is_tmdb_duplicate=is_dup)
+        uri_by_id[movie_id] = uri
+        uri_by_idx[movie_idx] = uri
+
+    return uri_by_id, uri_by_idx
+
