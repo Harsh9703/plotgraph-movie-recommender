@@ -30,6 +30,9 @@ text = [
     "sentence-transformers>=2.2.0",
     "faiss-cpu>=1.7.0",
 ]
+nrc = [
+    "nrclex>=4.0.0",
+]
 gpu = [
     "vllm>=0.6.0",
     "torch>=2.4.0",

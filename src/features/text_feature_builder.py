@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from .constants import ALL_COLUMNS, PHASE4A_COLUMNS, TEXT_FEATURES
+from .constants import PHASE4A_COLUMNS, PHASE4B_COLUMNS, TEXT_FEATURES
 from .text_encoder import SBERTMovieEncoder, TFIDFMovieEncoder
 from .text_profiler import TextUserProfileIndex
 
@@ -194,8 +194,8 @@ def validate_text_candidate_features(
     for col in TEXT_FEATURES:
         assert col in features_df.columns, f"Phase 4B column '{col}' missing from Phase 4B output."
 
-    # 5. Full column set
-    missing_cols = set(ALL_COLUMNS) - set(features_df.columns)
+    # 5. Full Phase 4B column set
+    missing_cols = set(PHASE4B_COLUMNS) - set(features_df.columns)
     assert not missing_cols, f"Features DataFrame is missing expected columns: {missing_cols}"
 
     # 6. Leakage assertion

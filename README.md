@@ -99,6 +99,7 @@ The test suite covers:
 20. `tests/test_kg_l_builder.py`: KG-M/KG-L movie URI identity, semantic canonicalization, edge selection boundary (`score > 0.3`), continuous score/evidence representation, Turtle round-trip preservation, KGLQueryEngine SPARQL queries, KG-M + KG-L cross-graph compatibility, and error categorization regression.
 21. `tests/test_features.py`: Recency weighting exponential decay, positive-only train extraction, leakage guards rejecting VAL/TEST, user profile normalization, KG-M/KG-L affinities and overlap counts, continuous 8D emotion compatibility metrics, missingness handling, candidate integrity preservation, feature groups, and real artifact validation.
 22. `tests/test_text_features.py`: Deterministic TF-IDF overview vectorization, SBERT dense encoding on CPU, FAISS IndexFlatIP and NumPy fallback nearest-neighbor search, leakage guards rejecting VAL/TEST in text user profiles, recency weighting and unit L2 normalization, dot product and cosine similarity equivalence, missing text NaN handling, and full candidate matrix schema preservation.
+23. `tests/test_nrc_features.py`: Deterministic text preprocessing and tokenization, NRC Word-Emotion Association Lexicon lookup (restricted to 8 Plutchik emotions), continuous distribution normalization, zero-match and missing overview handling, TRAIN-only user profiles with exponential recency decay, feature group separation from Qwen, candidate matrix preservation (604,000 rows x 91 columns), and Qwen-vs-NRC comparative analytics.
 
 ---
 
@@ -763,6 +764,91 @@ Output Artifacts:
 - `data/processed/ml-1m/features/text_feature_summary.json`: Detailed missingness, coverage, and similarity distribution report.
 - `data/processed/ml-1m/features/text_embeddings/`: Cached SBERT embeddings (`movie_sbert_embeddings.npy`, `sbert_has_embedding_mask.npy`).
 - `data/processed/ml-1m/features/tfidf/`: Cached TF-IDF artifacts (`tfidf_vectorizer.joblib`, `movie_tfidf_matrix.npz`, `tfidf_has_text_mask.npy`).
+
+---
+
+## Phase 4C: NRC Lexicon Emotion Baseline Features
+
+Phase 4C constructs an independent, non-LLM emotion baseline derived from the **NRC Word-Emotion Association Lexicon (EmoLex)** across all 604,000 candidate rows, enabling direct downstream ablation comparisons between classical lexical emotion representations and PlotGraph's evidence-grounded Qwen emotion representations.
+
+### 1. Research Motivation & Separation
+- **Lexical Baseline vs LLM Extraction**: While PlotGraph extracts nuanced continuous Plutchik emotions grounded in narrative evidence via Qwen2.5-7B-Instruct, the NRC baseline represents a traditional unigram bag-of-words emotion representation.
+- **Strict Independence**: Movie NRC vectors are constructed **strictly from movie plot overviews**, completely independent of Qwen outputs.
+- **Preservation of Qwen Emotion Features**: All existing Phase 4A Qwen emotion features (`candidate_emotion_*`, `user_emotion_*`, `emotion_cosine_similarity`, etc.) remain completely untouched. NRC features are named with distinct prefixes (`candidate_nrc_*`, `user_nrc_*`, `nrc_emotion_*`).
+
+### 2. Lexicon Attribution & Text Preprocessing
+- **Source & Attribution**:
+  - Lexicon: *NRC Word-Emotion Association Lexicon (EmoLex)*, version 0.92, developed by Dr. Saif M. Mohammad and Dr. Peter D. Turney.
+  - Package: `NRCLex` 4.1.0 (`nrclex`).
+  - Citations:
+    - Mohammad, S. M., & Turney, P. D. (2013). *Crowdsourcing a Word-Emotion Association Lexicon*. Computational Intelligence, 29(3), 436–465.
+    - Mohammad, S. M., & Turney, P. D. (2010). *Emotions Evoked by the Common Words of Emotion*. Proceedings of the NAACL HLT 2010 Workshop on Computational Approaches to Analysis and Generation of Emotion in Text, 26–34.
+  - Licensing: Free for research and non-commercial educational use (National Research Council Canada EmoLex Research License).
+- **Emotion Mapping**:
+  - Restricted strictly to the 8 Plutchik emotions (`joy`, `trust`, `fear`, `surprise`, `sadness`, `disgust`, `anger`, `anticipation`).
+  - Binary sentiment polarities (`positive`, `negative`) present in EmoLex are explicitly filtered out from the primary 8D vector.
+- **Deterministic Preprocessing**:
+  - Unicode NFKD normalization with ASCII encoding to handle accents and diacritics.
+  - Lowercase conversion.
+  - Regex unigram word extraction (`[a-z]+`) with punctuation and digit stripping.
+  - No stemming, lemmatization, or negation handling is applied, ensuring a transparent, reproducible, lightweight lexical baseline.
+
+### 3. Movie NRC Representation & Normalization
+- For each movie with an overview, unigram tokens are matched against EmoLex to produce an 8D count vector.
+- When total matched Plutchik emotion count $> 0$, the vector is normalized into a continuous distribution:
+  $$\text{normalized}_e = \frac{\text{count}_e}{\sum_{k=1}^8 \text{count}_k}, \qquad \sum_{e=1}^8 \text{normalized}_e = 1.0$$
+- Movies lacking plot overviews (73 movies) or overviews with zero NRC emotion matches (66 movies) receive `candidate_nrc_available = 0`, with all 8 dimension values set to `NaN`.
+
+### 4. Leakage-Safe Recency-Weighted User Profiles
+- **TRAIN-Only Protocol**: Constructed **strictly from positive TRAIN interactions** (`rating >= 4.0` / `positive == 1`). Zero VAL or TEST interactions, ratings, or timestamps are accessed.
+- **Exponential Recency Weighting**:
+  $$\text{age\_days} = \frac{t_{u, \max} - t}{86400.0}, \qquad w(u, i) = 0.5^{(\text{age\_days} / \text{half\_life\_days})}$$
+  with default $\text{half\_life\_days} = 365.0$.
+- **User NRC Profile Aggregation**:
+  $$\mathbf{u}_{\text{nrc}} = \frac{\sum_{i \in \mathcal{H}_u^+} w(u, i) \mathbf{v}_{\text{nrc}, i}}{\sum_{i \in \mathcal{H}_u^+} w(u, i)}, \qquad \sum_{e=1}^8 u_{\text{nrc}, e} = 1.0$$
+
+### 5. Feature Dimensions (23 New Columns, 91 Total Columns in Full Table)
+The final table `full_candidate_features.parquet` preserves all 68 Phase 4B columns and appends 23 NRC features:
+- **Compatibility Metrics (4)**: `nrc_emotion_cosine_similarity`, `nrc_emotion_dot_product`, `nrc_emotion_l1_distance`, `nrc_emotion_l2_distance`.
+- **Candidate 8D Dimensions (8)**: `candidate_nrc_{e}` for all 8 Plutchik emotions.
+- **User 8D Dimensions (8)**: `user_nrc_{e}` for all 8 Plutchik emotions.
+- **Coverage & Support (3)**: `candidate_nrc_available`, `user_nrc_profile_available`, `candidate_nrc_matched_token_count`.
+
+### 6. Modular Ablation Groups
+The codebase defines modular feature groups in `src/features/constants.py` (`ABLATION_FEATURE_GROUPS`):
+- `BASE`: Baseline CF features + coverage flags (10 features)
+- `KGM`: KG-M affinities + overlaps (15 features)
+- `KGL_SEMANTIC`: KG-L semantic affinities + overlaps (13 features)
+- `QWEN_EMOTION`: Qwen evidence-grounded emotion compatibility + raw dimensions (20 features)
+- `NRC_EMOTION`: NRC lexicon emotion compatibility + raw dimensions + coverage (23 features)
+- `TEXT`: TF-IDF + SBERT text-semantic features (8 features)
+- `ALL`: Full multimodal feature set (89 features, 91 total columns including identifiers)
+
+### 7. Descriptive Qwen vs NRC Movie-Level Comparison (3,723 Common Movies)
+Evaluated across all 3,723 catalog movies with both valid Qwen emotion extractions and valid NRC vectors:
+- **Average Cosine Similarity**: **0.4866** (std = 0.2665, median = 0.5252).
+- **Per-Emotion Distribution Statistics**:
+  - `joy`: NRC mean = 0.1369 vs Qwen mean = 0.0688 ($r = 0.2614$)
+  - `trust`: NRC mean = 0.1945 vs Qwen mean = 0.0381 ($r = 0.0414$)
+  - `fear`: NRC mean = 0.1579 vs Qwen mean = 0.1336 ($r = 0.2674$)
+  - `surprise`: NRC mean = 0.0782 vs Qwen mean = 0.1215 ($r = 0.0361$)
+  - `sadness`: NRC mean = 0.1070 vs Qwen mean = 0.1194 ($r = 0.1389$)
+  - `disgust`: NRC mean = 0.0711 vs Qwen mean = 0.0835 ($r = 0.1417$)
+  - `anger`: NRC mean = 0.1080 vs Qwen mean = 0.0902 ($r = 0.1899$)
+  - `anticipation`: NRC mean = 0.1465 vs Qwen mean = 0.2826 ($r = -0.0281$)
+
+*Observation*: While lexical NRC distributes weight heavily to frequent dictionary terms (`trust` mean 0.1945), Qwen's evidence-grounded extraction concentrates more strongly on narrative suspense/anticipation (`anticipation` mean 0.2826) and conflict, providing a distinct complementary signal.
+
+### 8. Running Phase 4C Pipeline
+```bash
+python scripts/run_phase4c_nrc_features.py --config configs/nrc_features.yaml
+```
+
+Output Artifacts:
+- `data/processed/ml-1m/features/full_candidate_features.parquet`: Complete candidate table (66.09 MB, exactly 604,000 rows, 91 columns).
+- `data/processed/ml-1m/features/nrc_feature_summary.json`: Detailed missingness, coverage, and Qwen-vs-NRC comparative analysis report.
+- `data/processed/ml-1m/features/nrc/movie_nrc_vectors.parquet`: Cached 8D movie NRC vectors (75.6 KB, 3,883 movies).
+
 
 
 

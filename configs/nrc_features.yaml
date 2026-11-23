@@ -1,0 +1,34 @@
+# ==============================================================================
+# PlotGraph Phase 4C: NRC Lexicon Emotion Baseline Features Configuration
+# ==============================================================================
+
+# Input dataset paths
+input_paths:
+  phase4b_features: "data/processed/ml-1m/features/kg_text_candidate_features.parquet"
+  metadata: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
+  train_split: "data/processed/ml-1m/splits/train.parquet"
+  qwen_vectors: "data/processed/ml-1m/kg_l/full_extraction/emotion_vectors.parquet"
+
+# Output artifact paths
+output_paths:
+  features_parquet: "data/processed/ml-1m/features/full_candidate_features.parquet"
+  features_summary: "data/processed/ml-1m/features/nrc_feature_summary.json"
+  nrc_dir: "data/processed/ml-1m/features/nrc"
+
+# Lexicon configuration
+nrc:
+  lexicon_name: "NRC Word-Emotion Association Lexicon (EmoLex)"
+  package: "NRCLex"
+  version: "4.1.0"
+
+# Recency weighting policy (strictly aligned with Phases 4A & 4B)
+recency:
+  half_life_days: 365.0
+  decay_type: "half_life"  # formulation: 0.5 ** (age_days / half_life_days)
+
+# Positive feedback threshold
+filtering:
+  positive_threshold: 4.0  # rating >= 4.0 / positive == 1
+
+# Deterministic seed
+seed: 42

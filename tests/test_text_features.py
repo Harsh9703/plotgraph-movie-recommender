@@ -35,6 +35,7 @@ from src.features.constants import (
     ALL_FEATURES,
     IDENTIFIER_COLUMNS,
     PHASE4A_COLUMNS,
+    PHASE4B_COLUMNS,
     SBERT_FEATURES,
     TEXT_FEATURES,
     TFIDF_FEATURES,
@@ -381,8 +382,8 @@ def test_build_text_candidate_features_and_validation():
     # 1. Total row count preserved
     assert len(features_df) == 4
     # 2. Total columns = 60 + 8 = 68
-    assert len(features_df.columns) == len(ALL_COLUMNS)
-    for col in ALL_COLUMNS:
+    assert len(features_df.columns) == len(PHASE4B_COLUMNS)
+    for col in PHASE4B_COLUMNS:
         assert col in features_df.columns
 
     # 3. Check Row 0 (User 0, Movie 10: both available, identical vectors)
@@ -492,7 +493,7 @@ def test_real_phase4b_artifacts_if_present():
     df = pd.read_parquet(feature_path)
     assert len(df) == 604_000
     assert len(df.columns) == 68
-    assert list(df.columns) == ALL_COLUMNS
+    assert list(df.columns) == PHASE4B_COLUMNS
 
     # Zero leakage check
     assert int(df["candidate_seen_in_positive_train"].sum()) == 0

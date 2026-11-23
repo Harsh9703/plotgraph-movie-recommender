@@ -153,6 +153,9 @@ EMOTION_FEATURES: List[str] = (
     + USER_EMOTION_FEATURES
 )
 
+# Explicit alias for clarity in multimodal ablations
+QWEN_EMOTION_FEATURES: List[str] = EMOTION_FEATURES
+
 OVERLAP_COUNT_FEATURES: List[str] = (
     KGM_OVERLAP_FEATURES + KGL_SEMANTIC_OVERLAP_FEATURES
 )
@@ -182,12 +185,63 @@ SBERT_FEATURES: List[str] = [
 TEXT_FEATURES: List[str] = TFIDF_FEATURES + SBERT_FEATURES
 
 # -----------------------------------------------------------------------------
-# Combined Feature Groups
+# Phase 4C: NRC Lexicon Emotion Baseline Feature Groups
+# -----------------------------------------------------------------------------
+
+NRC_EMOTION_COMPATIBILITY_FEATURES: List[str] = [
+    "nrc_emotion_cosine_similarity",
+    "nrc_emotion_dot_product",
+    "nrc_emotion_l1_distance",
+    "nrc_emotion_l2_distance",
+]
+
+CANDIDATE_NRC_EMOTION_FEATURES: List[str] = [
+    f"candidate_nrc_{e}" for e in PLUTCHIK_EMOTIONS
+]
+
+USER_NRC_EMOTION_FEATURES: List[str] = [
+    f"user_nrc_{e}" for e in PLUTCHIK_EMOTIONS
+]
+
+NRC_COVERAGE_FEATURES: List[str] = [
+    "candidate_nrc_available",
+    "user_nrc_profile_available",
+    "candidate_nrc_matched_token_count",
+]
+
+NRC_EMOTION_FEATURES: List[str] = (
+    NRC_EMOTION_COMPATIBILITY_FEATURES
+    + CANDIDATE_NRC_EMOTION_FEATURES
+    + USER_NRC_EMOTION_FEATURES
+    + NRC_COVERAGE_FEATURES
+)
+
+# -----------------------------------------------------------------------------
+# Phase Preservation and Combined Feature Sets
 # -----------------------------------------------------------------------------
 
 PHASE4A_FEATURES: List[str] = BASE_FEATURES + ALL_KG_FEATURES
 PHASE4A_COLUMNS: List[str] = IDENTIFIER_COLUMNS + PHASE4A_FEATURES
 
-ALL_FEATURES: List[str] = BASE_FEATURES + ALL_KG_FEATURES + TEXT_FEATURES
+PHASE4B_FEATURES: List[str] = BASE_FEATURES + ALL_KG_FEATURES + TEXT_FEATURES
+PHASE4B_COLUMNS: List[str] = IDENTIFIER_COLUMNS + PHASE4B_FEATURES
 
-ALL_COLUMNS: List[str] = IDENTIFIER_COLUMNS + ALL_FEATURES
+FULL_FEATURES: List[str] = PHASE4B_FEATURES + NRC_EMOTION_FEATURES
+FULL_COLUMNS: List[str] = IDENTIFIER_COLUMNS + FULL_FEATURES
+
+ALL_FEATURES: List[str] = FULL_FEATURES
+ALL_COLUMNS: List[str] = FULL_COLUMNS
+
+# -----------------------------------------------------------------------------
+# Modular Ablation Study Feature Groups
+# -----------------------------------------------------------------------------
+
+ABLATION_FEATURE_GROUPS: dict[str, List[str]] = {
+    "BASE": BASE_FEATURES,
+    "KGM": KGM_FEATURES,
+    "KGL_SEMANTIC": KGL_SEMANTIC_FEATURES,
+    "QWEN_EMOTION": QWEN_EMOTION_FEATURES,
+    "NRC_EMOTION": NRC_EMOTION_FEATURES,
+    "TEXT": TEXT_FEATURES,
+    "ALL": FULL_FEATURES,
+}
