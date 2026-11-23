@@ -1,0 +1,41 @@
+# Phase 5A Learning-to-Rank LightGBM Reranker Configuration
+
+inputs:
+  candidates_path: "data/processed/ml-1m/features/full_candidate_features.parquet"
+  val_path: "data/processed/ml-1m/splits/val.parquet"
+  # STRICT ENFORCEMENT: test.parquet is forbidden and never accessed.
+
+outputs:
+  output_dir: "data/processed/ml-1m/reranker"
+  ablation_results_json: "data/processed/ml-1m/reranker/ablation_results.json"
+  ablation_results_csv: "data/processed/ml-1m/reranker/ablation_results.csv"
+  eval_predictions_parquet: "data/processed/ml-1m/reranker/eval_predictions.parquet"
+  feature_importance_csv: "data/processed/ml-1m/reranker/feature_importance.csv"
+  run_summary_json: "data/processed/ml-1m/reranker/run_summary.json"
+  selected_model_joblib: "data/processed/ml-1m/reranker/selected_model.joblib"
+  selected_model_txt: "data/processed/ml-1m/reranker/selected_model.txt"
+
+splits:
+  eval_size: 0.20
+  inner_val_size: 0.20
+  positive_threshold: 4.0
+  seed: 42
+
+lightgbm:
+  objective: "lambdarank"
+  ndcg_eval_at: [10]
+  learning_rate: 0.05
+  num_leaves: 31
+  n_estimators: 300
+  early_stopping_rounds: 30
+  min_child_samples: 20
+  subsample: 0.8
+  colsample_bytree: 0.8
+  n_jobs: 4
+  random_state: 42
+
+evaluation:
+  cutoffs: [10, 20]
+  primary_metric: "ndcg@10"
+  n_bootstraps: 1000
+  bootstrap_seed: 42

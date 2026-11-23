@@ -849,6 +849,109 @@ Output Artifacts:
 - `data/processed/ml-1m/features/nrc_feature_summary.json`: Detailed missingness, coverage, and Qwen-vs-NRC comparative analysis report.
 - `data/processed/ml-1m/features/nrc/movie_nrc_vectors.parquet`: Cached 8D movie NRC vectors (75.6 KB, 3,883 movies).
 
+---
+
+## Phase 5A: LightGBM Learning-to-Rank Reranker Training & Validation Ablation Experiments
+
+Phase 5A implements supervised learning-to-rank reranking on the fixed EASE top-100 candidate pool (`data/processed/ml-1m/features/full_candidate_features.parquet`, 604,000 rows, 6,040 users, 100 rows/user, 91 columns) using LightGBM's LambdaRank objective, conducting extensive ablation experiments across knowledge, emotion, and text feature families on held-out validation users.
+
+### 1. Supervision Rationale & Leakage Isolation
+- **VAL Used Exclusively for Reranker Supervision**: Because user preference profiles and all candidate features were computed and frozen strictly from positive TRAIN interactions in Phases 4A–4C, the validation split (`val.parquet`, 99,950 interactions, 53,166 positives with `rating >= 4.0`) can safely serve as ground-truth supervision (`val_label \in {0, 1}`) for reranker training and evaluation.
+- **TRAIN-Only Profiles Preserved**: User preference profiles are never recomputed or augmented with VAL interactions. Feature columns remain frozen.
+- **Strict Zero TEST Access**: The MovieLens TEST split (`test.parquet`) is strictly isolated and never accessed, referenced, or loaded in any reranker module or pipeline script. Automated guards (`assert_no_test_access`) intercept and reject any reference to `test.parquet`.
+
+### 2. Candidate-Pool Ceiling & Evaluability
+- **Fixed Candidate Pool Recall@100**: The candidate generation stage (EASE reg=500) has an empirical validation Recall@100 ceiling of **0.4421** (mean per-user across users with $\ge 1$ validation positive) and **0.3293** (global ratio: 17,506 captured positives / 53,166 total validation positives).
+- **Evaluable Users in Top-100**:
+  - Total users: 6,040
+  - Users with $\ge 1$ positive VAL interaction: 5,805
+  - Users with $\ge 1$ positive VAL candidate in top-100: **5,023** (83.16% of total catalog users)
+  - Users with 0 positive candidates in top-100: 1,017 (16.84%)
+- **Supervision Restriction Rationale**: Ranking models optimize relative item order within each user query group. Users with zero positive candidates in their top-100 list produce all-zero label queries, generating zero ranking gradients for LambdaRank and undefined NDCG. Supervised reranker training and evaluation are therefore conducted strictly among the 5,023 evaluable users.
+- **Recall Metric Distinction**:
+  - **End-to-End Validation Recall@K**: Evaluated against *all* positive VAL items for the user ($\text{hits} / |\text{Relevant}_{\text{VAL}}|$). Cannot exceed the candidate-pool ceiling (0.4421).
+  - **Conditional Reranking Recall@K**: Evaluated strictly against the positive items captured *within* the top-100 pool ($\text{hits} / |\text{Relevant}_{\text{Pool}}|$). Ceiling = 1.0.
+
+### 3. User-Level Partitioning
+To prevent user-level data leakage, candidate rows for each user are grouped contiguously and split at the user level:
+- **Held-Out Evaluation Users (20%)**: Exactly **1,005 users** (100,500 candidate rows), strictly held out from model training and early stopping.
+- **Reranker Training Users (80%)**: Exactly **4,018 users** (401,800 candidate rows), further partitioned for early stopping:
+  - **Fit Partition (80% of Train)**: **3,214 users** (321,400 rows).
+  - **Inner-Validation Partition (20% of Train)**: **804 users** (80,400 rows) used strictly for early stopping.
+- **Stratification & Determinism**: Both splits are stratified by binned positive candidate counts with deterministic `seed=42`, ensuring identical positive label distributions across partitions (Train mean positives = 3.489; Eval mean positives = 3.469).
+
+### 4. LightGBM LambdaRank Configuration
+- **Objective**: `lambdarank` with query group sizes of exactly 100 per user.
+- **Primary Target Metric**: `ndcg@10` (with early stopping patience of 30 rounds).
+- **Hyperparameters**: `num_leaves=31`, `learning_rate=0.05`, `n_estimators=300`, `min_child_samples=20`, `colsample_bytree=0.8`, `subsample=0.8`, `random_state=42`, `n_jobs=4`.
+
+### 5. Validation-Stage Ablation Results (Held-Out Evaluation Users, N=1,005)
+
+| Model Configuration | Feature Count | NDCG@10 | Δ NDCG@10 vs EASE | Recall@10 (e2e) | Recall@10 (cond) | HR@10 | MRR@10 | NDCG@20 | Recall@20 (e2e) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **EASE_BASELINE** | 0 | 0.0953 | --- | 0.1079 | 0.1745 | 0.4010 | 0.1645 | 0.1186 | 0.1776 |
+| **BASE** | 10 | 0.0826 | -0.0127 (-13.3%) | 0.0961 | 0.1555 | 0.3881 | 0.1464 | 0.1052 | 0.1644 |
+| **BASE + KGM** | 25 | 0.0923 | -0.0030 (-3.2%) | 0.1088 | 0.1800 | 0.4040 | 0.1570 | 0.1167 | 0.1824 |
+| **BASE + KGL_SEMANTIC** | 23 | 0.0827 | -0.0126 (-13.2%) | 0.0930 | 0.1534 | 0.3701 | 0.1416 | 0.1063 | 0.1668 |
+| **BASE + QWEN_EMOTION** | 30 | 0.0926 | -0.0027 (-2.8%) | 0.1045 | 0.1743 | 0.4060 | 0.1521 | 0.1148 | 0.1719 |
+| **BASE + NRC_EMOTION** | 33 | 0.0926 | -0.0027 (-2.8%) | 0.1029 | 0.1772 | 0.4070 | 0.1597 | 0.1138 | 0.1684 |
+| **BASE + TEXT** | 18 | 0.0820 | -0.0133 (-14.0%) | 0.0982 | 0.1650 | 0.3771 | 0.1404 | 0.1033 | 0.1621 |
+| **BASE + KGM + KGL** | 38 | 0.0985 | +0.0032 (+3.4%) | 0.1114 | 0.1831 | 0.4090 | 0.1673 | 0.1224 | 0.1818 |
+| **BASE + KGM + KGL + QWEN** | 58 | 0.0973 | +0.0020 (+2.1%) | 0.1054 | 0.1800 | 0.4179 | 0.1711 | 0.1215 | 0.1789 |
+| **BASE + KGM + KGL + NRC** | 61 | 0.0989 | +0.0037 (+3.9%) | 0.1086 | 0.1864 | 0.4408 | 0.1801 | 0.1211 | 0.1756 |
+| **FULL (KG+QWEN+TEXT)** | 66 | 0.1006 | +0.0054 (+5.6%) | 0.1101 | 0.1853 | 0.4318 | 0.1731 | 0.1246 | 0.1834 |
+| **FULL + NRC (All Features)** | 89 | **0.1040** | **+0.0087 (+9.2%)** | **0.1165** | **0.1961** | **0.4517** | **0.1834** | **0.1248** | **0.1813** |
+
+### 6. Key Scientific Findings & Ablation Analysis
+1. **Tree Partitioning on Base Features Alone Distorts CF Calibration**:
+   - Training on `BASE` features alone drops NDCG@10 from 0.0953 to 0.0826 (-13.3%). Without external semantic knowledge, gradient boosted tree splits discretize EASE score and rank in ways that disrupt continuous collaborative filtering precision.
+2. **Knowledge Graph Synergy (`BASE + KGM + KGL`)**:
+   - Combining metadata affinities (KG-M) with semantic narrative properties (KG-L) surpasses the EASE baseline (NDCG@10 = 0.0985, +3.4%), achieving a +0.0159 lift over BASE alone ($p = 0.0020$).
+3. **Qwen Emotion vs NRC Emotion Comparison**:
+   - In isolation with BASE, both emotion families provide identical standalone performance (NDCG@10 = 0.0926 vs 0.0926; paired bootstrap $\Delta = -0.0001$, $p = 0.9740$, not statistically different).
+   - In multimodal combinations, NRC emotion features provide higher hit rates and MRR (`HR@10` = 0.4408 vs 0.4179; `MRR@10` = 0.1801 vs 0.1711).
+4. **Multimodal Synergy**:
+   - The full multimodal model (`FULL + NRC`, 89 features) achieves the strongest ranking performance across all metrics: **NDCG@10 = 0.1040** (+9.15% relative improvement over EASE), **HR@10 = 0.4517** (vs 0.4010 for EASE, a +12.6% relative increase in finding relevant movies in top 10), and **MRR@10 = 0.1834** (vs 0.1645 for EASE).
+
+### 7. Statistical Significance Analysis (1,000 User-Level Bootstrap Resamples)
+Using 1,000 paired bootstrap resamples across the 1,005 evaluation users with deterministic seed 42:
+- **Best Model (`FULL_NRC`) vs EASE Baseline**:
+  - $\Delta \text{NDCG@10} = +0.0087$, 95% CI: $[+0.0009, +0.0173]$, $p = 0.0340$ (**Statistically Significant at $\alpha = 0.05$**).
+  - Probability of superiority: **98.3%**.
+- **KG-M + KG-L vs BASE**:
+  - $\Delta \text{NDCG@10} = +0.0159$, 95% CI: $[+0.0064, +0.0254]$, $p = 0.0020$ (**Statistically Significant**).
+- **Best Model vs BASE**:
+  - $\Delta \text{NDCG@10} = +0.0214$, 95% CI: $[+0.0122, +0.0308]$, $p = 0.0000$ (**Statistically Significant**).
+- **Qwen Emotion vs NRC Emotion (BASE)**:
+  - $\Delta \text{NDCG@10} = -0.0001$, 95% CI: $[-0.0081, +0.0086]$, $p = 0.9740$ (**No Significant Difference**).
+- **Multimodal Qwen vs Multimodal NRC**:
+  - $\Delta \text{NDCG@10} = -0.0017$, 95% CI: $[-0.0088, +0.0049]$, $p = 0.6680$ (**No Significant Difference**).
+
+### 8. Feature Importance for Best Model (`FULL_NRC`)
+- **Gain Importance by Feature Family**:
+  - `BASE` (10 features): **28.77%** total gain (anchored by `ease_score` at 13.63% and `candidate_rank` at 11.43%).
+  - `NRC_EMOTION` (23 features): **25.50%** total gain (`candidate_nrc_fear` 2.19%, `user_nrc_fear` 2.17%).
+  - `KGM` (15 features): **18.97%** total gain (`kgm_actor_affinity` 4.21%, `kgm_affinity_mean` 2.76%, `kgm_decade_affinity` 2.71%).
+  - `QWEN_EMOTION` (20 features): **17.70%** total gain (`user_emotion_fear` 2.23%).
+  - `TEXT` (8 features): **4.99%** total gain.
+  - `KGL_SEMANTIC` (13 features): **4.06%** total gain.
+
+### 9. Output Artifacts (`data/processed/ml-1m/reranker/`)
+All generated artifacts are Git-ignored:
+- `ablation_results.csv`: Table of all 11 model configurations + EASE baseline with all 10 evaluation metrics, feature counts, fit and inference runtimes, and deltas.
+- `ablation_results.json`: JSON format of full ablation results.
+- `eval_predictions.parquet`: Parquet table (21.7 MB, 100,500 rows) with model predicted scores and reranked ranks for held-out evaluation users.
+- `feature_importance.csv`: Gain and split importances mapped to feature families for the selected best model.
+- `run_summary.json`: Complete audit record with candidate pool statistics, user split counts, model parameters, bootstrap significance intervals, and family importance totals.
+- `selected_model.joblib`: Serialized LightGBM model object.
+- `selected_model.txt`: Text dump of LightGBM booster model.
+
+### 10. Execution Command
+```bash
+python scripts/run_phase5a_reranker.py --config configs/reranker.yaml
+```
+
+
 
 
 
