@@ -1,0 +1,50 @@
+# Phase 5B Final Evaluation Preparation Configuration
+# Frozen methodology and TRAIN+VAL historical candidate/feature pipeline
+
+inputs:
+  train_path: "data/processed/ml-1m/splits/train.parquet"
+  val_path: "data/processed/ml-1m/splits/val.parquet"
+  phase4c_candidate_features: "data/processed/ml-1m/features/full_candidate_features.parquet"
+  metadata_path: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
+  semantic_validated_path: "data/processed/ml-1m/kg_l/full_extraction/semantic_validated.parquet"
+  emotion_vectors_path: "data/processed/ml-1m/kg_l/full_extraction/emotion_vectors.parquet"
+  tfidf_dir: "data/processed/ml-1m/features/tfidf"
+  text_embeddings_dir: "data/processed/ml-1m/features/text_embeddings"
+  movie_nrc_path: "data/processed/ml-1m/features/nrc/movie_nrc_vectors.parquet"
+  # STRICT ENFORCEMENT: test.parquet is forbidden and never accessed.
+
+outputs:
+  output_dir: "data/processed/ml-1m/final_eval"
+  test_candidates_parquet: "data/processed/ml-1m/final_eval/test_candidates_top100.parquet"
+  test_candidate_features_parquet: "data/processed/ml-1m/final_eval/test_candidate_features.parquet"
+  final_reranker_joblib: "data/processed/ml-1m/final_eval/final_reranker.joblib"
+  final_reranker_txt: "data/processed/ml-1m/final_eval/final_reranker.txt"
+  unlabeled_predictions_parquet: "data/processed/ml-1m/final_eval/test_candidate_predictions_unlabeled.parquet"
+  final_manifest_json: "data/processed/ml-1m/final_eval/final_evaluation_manifest.json"
+
+methodology:
+  selected_model: "FULL_NRC"
+  candidate_generator: "EASE"
+  ease_regularization: 500.0
+  positive_threshold: 4.0
+  half_life_days: 365.0
+  k_candidates: 100
+  total_users: 6040
+  total_movies: 3883
+  seed: 42
+
+lightgbm:
+  objective: "lambdarank"
+  ndcg_eval_at: [10]
+  best_iteration: 15
+  learning_rate: 0.05
+  num_leaves: 31
+  min_child_samples: 20
+  subsample: 0.8
+  colsample_bytree: 0.8
+  random_state: 42
+  n_jobs: 4
+
+sbert:
+  model_id: "sentence-transformers/all-MiniLM-L6-v2"
+  device: "cpu"

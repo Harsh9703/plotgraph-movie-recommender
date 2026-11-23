@@ -951,6 +951,87 @@ All generated artifacts are Git-ignored:
 python scripts/run_phase5a_reranker.py --config configs/reranker.yaml
 ```
 
+---
+
+## Phase 5B: Final Methodology Freeze & Test-Time Candidate Preparation
+
+Phase 5B freezes the final modeling configuration selected in Phase 5A (`FULL + NRC`, 89 features) and prepares the test-time candidate and feature pipeline using historical interactions (`TRAIN + VAL`), strictly without accessing, loading, or evaluating the MovieLens TEST split.
+
+### 1. Final Methodology Freeze
+All modeling, candidate generation, feature engineering, and hyperparameter decisions are permanently frozen:
+- **Selected Model Family**: `FULL + NRC (All Features)` (89 model features, 91 total columns with identifiers).
+- **Candidate Generator**: `EASE` ($L_2$ regularization $\lambda = 500.0$).
+- **Positive Interaction Threshold**: `rating >= 4.0` / `positive == 1`.
+- **Exponential Recency Weighting**: Half-life $\tau = 365.0$ days ($w(u, i) = 0.5^{(\text{age\_days} / 365.0)}$).
+- **Text Encoders**:
+  - TF-IDF: unigram + bigram, `min_df=2`, `max_df=0.8`, `stop_words='english'`, unit $L_2$ normalized.
+  - SBERT: `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions, unit $L_2$ normalized).
+- **Emotion Baselines & Extractions**:
+  - NRC Lexicon: EmoLex v0.92, 8 Plutchik emotions, unit $L_1$ normalized (sums to 1.0).
+  - Qwen Evidence-Grounded Extraction: Qwen2.5-7B-Instruct, prompt `v1.0.0`, schema `v1.0.0`, 8 Plutchik continuous scores in $[0, 1]$.
+  - KG-L Emotion Edge Threshold: `score > 0.3`.
+- **LightGBM LambdaRank Hyperparameters**:
+  - `objective: "lambdarank"`
+  - `ndcg_eval_at: [10]`
+  - `n_estimators: 15` (frozen best iteration from Phase 5A model selection)
+  - `learning_rate: 0.05`
+  - `num_leaves: 31`
+  - `min_child_samples: 20`
+  - `colsample_bytree: 0.8`
+  - `subsample: 0.8`
+  - `random_state: 42`, `n_jobs: 4`
+
+### 2. Historical Interaction Definition (`TRAIN + VAL`)
+- **Temporal Ordering**: Both TRAIN and VAL chronologically precede TEST. At test time, all positive interactions from `TRAIN + VAL` (523,955 interactions across 6,038 active users out of 900,259 total ratings) represent available historical user data.
+- **Strict Separation of Purposes**:
+  - *Reranker Supervision*: LightGBM learns feature-to-relevance relationships strictly from validation candidate labels.
+  - *Test-Time User Profiles*: Rebuilt exclusively from historical `TRAIN + VAL` interactions, with each user's reference timestamp $t_{u, \max}$ established strictly from their latest positive `TRAIN + VAL` interaction. Zero TEST timestamps, ratings, or interactions are accessed.
+
+### 3. EASE Refit on Positive TRAIN+VAL & Test Candidate Pool
+- EASE ($\lambda = 500.0$) was refit on all 523,955 positive `TRAIN + VAL` interactions across the 6,040 catalog users and 3,883 movies in 4.39s.
+- Generated Top-100 candidates for all 6,040 users with strict exclusion of all seen positive `TRAIN + VAL` items (`exclude_seen=True`).
+- Output: `data/processed/ml-1m/final_eval/test_candidates_top100.parquet` (exactly 604,000 rows, 100 candidates per user, finite scores, zero positive `TRAIN + VAL` leakage).
+
+### 4. Test-Time User Profiles & Candidate Feature Table
+- Rebuilt all user preference profiles using positive `TRAIN + VAL` history:
+  - KG-M metadata profiles and KG-L semantic narrative profiles.
+  - Qwen continuous emotion profiles.
+  - NRC lexicon emotion profiles (6,038 users with valid profiles).
+  - TF-IDF and SBERT text-semantic user profiles.
+- Assembled the complete 89-feature candidate table:
+  - `test_candidate_features.parquet` (69.90 MB, exactly 604,000 rows, 91 columns).
+  - Verified 100% schema compatibility with Phase 5A: identical column names, exact 89-feature order, identical dtypes, and zero historical seen-item leakage.
+
+### 5. Final LightGBM Reranker Refit
+- Refit the frozen `FULL_NRC` model on all 5,023 eligible validation-supervised users (502,300 candidate rows) using the frozen `best_iteration = 15`.
+- Serialized final model artifacts:
+  - `data/processed/ml-1m/final_eval/final_reranker.joblib`
+  - `data/processed/ml-1m/final_eval/final_reranker.txt` (15 decision trees).
+
+### 6. Dry-Run Unlabeled Candidate Predictions
+- Evaluated the final LightGBM model across all 604,000 test-time candidate rows **without loading TEST labels**.
+- Output: `data/processed/ml-1m/final_eval/test_candidate_predictions_unlabeled.parquet` (7.16 MB, exactly 604,000 rows).
+- Schema: `['user_idx', 'movie_idx', 'candidate_rank', 'ease_score', 'reranker_score', 'reranked_rank']`.
+- Contains candidate rankings (1..100) per user. No relevance labels or performance metrics were computed.
+
+### 7. Final Evaluation Manifest
+- Generated `data/processed/ml-1m/final_eval/final_evaluation_manifest.json` recording:
+  - Frozen methodology parameters, feature list, and history definitions.
+  - Candidate pool and feature table validation statistics.
+  - SHA-256 checksums for all final evaluation artifacts:
+    - `test_candidates_top100.parquet`: `45f08f438293654ff19c12c178177f7c7f17489c33b4e612bee47264ceec3d05`
+    - `test_candidate_features.parquet`: `0fc39bf212bef002b8ed246e7aaeda5cf8ae594997114788283fa30bc905510e`
+    - `final_reranker.joblib`: `74f21f412510484096d9af976a0da58d1fc8f7e4bcd90ec2b6e1acb9df8c93b3`
+    - `final_reranker.txt`: `ee138c3e91d1d3dd79bb4c54aa249b1377def126ad0994daf482019951893a53`
+    - `test_candidate_predictions_unlabeled.parquet`: `4cb6a967cf3dd3ef4a2c5346c808200c5aa2ef9b4475af0144d4dc975ca7968e`
+  - Explicit statement: `"FINAL TEST LABELS HAVE NOT BEEN ACCESSED. ZERO TEST ACCESS VERIFIED."`
+
+### 8. Execution Command
+```bash
+python scripts/run_phase5b_final_prep.py --config configs/final_eval.yaml
+```
+
+
 
 
 
