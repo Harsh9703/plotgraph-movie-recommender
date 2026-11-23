@@ -215,3 +215,52 @@ python scripts/run_phase3d_qwen_pilot.py --backend mock --prompt-version v1.0.0
 python scripts/run_phase3e_emotion_pilot.py --backend mock
 ```
 This runs the complete safety guard, checkpointing, retry logic, summary generation, derived vector export, and review CSV export locally using mock responses.
+
+---
+
+## 8. Phase 3F Full Production Extraction on ASU SOL
+
+Phase 3F runs full-catalog batched extraction across all 3,810 eligible movies with plot overviews using a single initialized Qwen2.5-7B-Instruct engine.
+
+### 8.1 SLURM Production Configuration (`scripts/sol/kg_l_qwen_full_extraction.sbatch`)
+
+```bash
+#SBATCH --job-name=plotgraph_qwen_full
+#SBATCH --output=logs/sol/%x_%j.out
+#SBATCH --error=logs/sol/%x_%j.err
+#SBATCH -q class
+#SBATCH -p general
+#SBATCH -G 1
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=06:00:00
+```
+
+### 8.2 Runtime & Walltime Rationale
+- **Batch Size**: 16 with vLLM continuous batching.
+- **Estimated Runtime**:
+  - Optimistic: ~0.79 hours (~47 mins)
+  - Moderate: ~1.22 hours (~73 mins)
+  - Conservative: ~2.35 hours (~141 mins, including 10% retries and startup)
+- **Walltime Setting**: `06:00:00` provides a 2.5x safety margin above conservative estimates.
+- **Resumption**: Checkpoints are flushed after every batch. If a job times out, resubmitting the identical `sbatch` command resumes from the exact last completed batch without duplicating records.
+
+### 8.3 Submitting the Production Job
+
+```bash
+# Standard full catalog run:
+sbatch scripts/sol/kg_l_qwen_full_extraction.sbatch
+
+# Or run with chunking (e.g. chunk 1 of 4):
+PLOTGRAPH_EXTRA_ARGS="--chunk-id 0 --num-chunks 4" sbatch scripts/sol/kg_l_qwen_full_extraction.sbatch
+```
+
+### 8.4 Validating Production Completion
+
+After completion, run the validation utility to ensure 100% accounting and zero duplicates:
+```bash
+python scripts/run_phase3f_full_extraction.py --config configs/kg_l.yaml --validate-only
+```
+

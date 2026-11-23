@@ -96,6 +96,20 @@ from .qwen_emotion_pilot import (
     run_qwen_emotion_pilot,
     validate_and_resolve_max_retries,
 )
+from .qwen_production import (
+    BaseProductionBackend,
+    VLLMProductionBackend,
+    MockProductionBackend,
+    ProductionCheckpointManager,
+    load_eligible_production_movies,
+    partition_movies,
+    estimate_production_runtime,
+    print_runtime_estimation,
+    run_production_extraction,
+    validate_production_run,
+    compute_production_emotion_statistics,
+    export_production_parquet_artifacts,
+)
 
 __all__ = [
     "PGO",
@@ -180,4 +194,16 @@ __all__ = [
     "export_emotion_review_csv",
     "run_qwen_emotion_pilot",
     "validate_and_resolve_max_retries",
+    "BaseProductionBackend",
+    "VLLMProductionBackend",
+    "MockProductionBackend",
+    "ProductionCheckpointManager",
+    "load_eligible_production_movies",
+    "partition_movies",
+    "estimate_production_runtime",
+    "print_runtime_estimation",
+    "run_production_extraction",
+    "validate_production_run",
+    "compute_production_emotion_statistics",
+    "export_production_parquet_artifacts",
 ]

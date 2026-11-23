@@ -514,6 +514,50 @@ Under the evidence-grounded emotion prompt, intensity scores are calibrated as:
   - `score = 0.31` $\rightarrow$ edge
   - `score = 0.40` $\rightarrow$ edge
 
+## Phase 3F: Production-Scale Batched Qwen Extraction Pipeline
+
+Phase 3F scales the frozen pilot methodology across all 3,810 eligible MovieLens-1M movies with Phase 3A plot overviews using batched vLLM inference on ASU SOL GPU compute.
+
+### 1. Production Architecture & Principles
+- **Unified vLLM Engine**: Initializes `Qwen/Qwen2.5-7B-Instruct` once per job, servicing both semantic and emotion tasks without reloading weights.
+- **Batched Generation**: Employs continuous batching in vLLM (`batch_size=16`) to maximize GPU throughput and maintain deterministic movie-result alignment.
+- **Two Independent Tasks per Movie**:
+  1. *Semantic Extraction*: Frozen prompt `v1.1.0` extracting `themes`, `settings`, `narrative_devices`, `protagonist_types`, `based_on`.
+  2. *Emotion Extraction*: Frozen prompt `v1.0.0` extracting 8 Plutchik emotions with grounded quote evidence and calibrated continuous intensities.
+- **Independent Checkpointing & Resumption**: Checkpoints are flushed to disk after every batch. Semantic and emotion tasks are tracked independently; resuming skips completed tasks and executes only missing or failed work without creating duplicates.
+- **Chunking / Range Partitioning**: Supports splitting extraction across jobs via `--chunk-id` / `--num-chunks` or `--start-idx` / `--end-idx` with deterministic movie ordering by `movie_idx`.
+- **Failure Resilience**: Bounded retry (`max_retries=1`) per task with explicit formatting reminders; permanent failures are recorded in `failures.jsonl` and do not abort the run.
+
+### 2. Output Artifacts (`data/processed/ml-1m/kg_l/full_extraction/`)
+All generated production data is Git-ignored:
+- `semantic_raw_outputs.jsonl`: Complete audit trail of raw model responses across all attempts.
+- `semantic_validated.jsonl`: Strictly validated `MoviePlotExtraction` records.
+- `semantic_failures.jsonl`: Categorized failure records for movies exhausting retries.
+- `emotion_raw_outputs.jsonl`: Raw model responses for emotion extraction attempts.
+- `emotion_validated_evidence.jsonl`: Auditable records with quote evidence and intensity scores.
+- `emotion_vectors.jsonl`: Clean 8-dimensional emotion vectors (`movie_id`, `movie_idx`, 8 scores, `prominent_emotions`).
+- `emotion_failures.jsonl`: Categorized failure records for emotion extraction.
+- `production_summary.json`: Detailed run metrics, throughputs, and descriptive emotion statistics.
+- `semantic_validated.parquet` & `emotion_vectors.parquet`: Compact Parquet exports for downstream loading in Phase 3G.
+
+### 3. Execution Commands
+
+#### Dry-Run Runtime Estimation (No GPU Needed):
+```bash
+python scripts/run_phase3f_full_extraction.py --config configs/kg_l.yaml --estimate-runtime
+```
+
+#### Production Run on ASU SOL (via SLURM):
+```bash
+sbatch scripts/sol/kg_l_qwen_full_extraction.sbatch
+```
+
+#### Completion Validation Utility:
+```bash
+python scripts/run_phase3f_full_extraction.py --config configs/kg_l.yaml --validate-only
+```
+
+
 
 
 

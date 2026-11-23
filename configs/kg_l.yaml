@@ -34,6 +34,19 @@ paths:
   emotion_pilot_summary_json: "data/processed/ml-1m/kg_l/emotion_pilot_v1/pilot_summary.json"
   emotion_review_csv: "data/processed/ml-1m/kg_l/emotion_pilot_v1/emotion_review.csv"
 
+  # Phase 3F production full extraction output paths
+  production_output_dir: "data/processed/ml-1m/kg_l/full_extraction"
+  production_semantic_raw_outputs_jsonl: "data/processed/ml-1m/kg_l/full_extraction/semantic_raw_outputs.jsonl"
+  production_semantic_validated_jsonl: "data/processed/ml-1m/kg_l/full_extraction/semantic_validated.jsonl"
+  production_semantic_failures_jsonl: "data/processed/ml-1m/kg_l/full_extraction/semantic_failures.jsonl"
+  production_emotion_raw_outputs_jsonl: "data/processed/ml-1m/kg_l/full_extraction/emotion_raw_outputs.jsonl"
+  production_emotion_validated_evidence_jsonl: "data/processed/ml-1m/kg_l/full_extraction/emotion_validated_evidence.jsonl"
+  production_emotion_vectors_jsonl: "data/processed/ml-1m/kg_l/full_extraction/emotion_vectors.jsonl"
+  production_emotion_failures_jsonl: "data/processed/ml-1m/kg_l/full_extraction/emotion_failures.jsonl"
+  production_summary_json: "data/processed/ml-1m/kg_l/full_extraction/production_summary.json"
+  production_semantic_validated_parquet: "data/processed/ml-1m/kg_l/full_extraction/semantic_validated.parquet"
+  production_emotion_vectors_parquet: "data/processed/ml-1m/kg_l/full_extraction/emotion_vectors.parquet"
+
 ontology:
   semantic_relations:
     - hasTheme
@@ -76,6 +89,21 @@ emotion_llm:
   gpu_memory_utilization: 0.90
   max_retries: 1
   max_pilot_movies: 30
+
+production:
+  model_id: "Qwen/Qwen2.5-7B-Instruct"
+  semantic_prompt_version: "v1.1.0"
+  semantic_schema_version: "v1.0.0"
+  emotion_prompt_version: "v1.0.0"
+  emotion_schema_version: "v1.0.0"
+  batch_size: 16
+  max_semantic_tokens: 1024
+  max_emotion_tokens: 1536
+  temperature: 0.0
+  tensor_parallel_size: 1
+  gpu_memory_utilization: 0.90
+  max_retries: 1
+  export_parquet: true
 
 sampling:
   sample_size: 30
