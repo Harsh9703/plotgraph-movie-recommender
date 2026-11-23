@@ -97,6 +97,7 @@ The test suite covers:
 18. `tests/test_emotion_pilot.py`: Dedicated emotion pilot execution, mock backend, safety guards, retry configuration resolution, and three-way comparative evaluation.
 19. `tests/test_qwen_production.py`: Production chunk/range partitioning, eligible movie filtering, mock batch alignment, independent task checkpointing/resumption, and runtime estimation.
 20. `tests/test_kg_l_builder.py`: KG-M/KG-L movie URI identity, semantic canonicalization, edge selection boundary (`score > 0.3`), continuous score/evidence representation, Turtle round-trip preservation, KGLQueryEngine SPARQL queries, KG-M + KG-L cross-graph compatibility, and error categorization regression.
+21. `tests/test_features.py`: Recency weighting exponential decay, positive-only train extraction, leakage guards rejecting VAL/TEST, user profile normalization, KG-M/KG-L affinities and overlap counts, continuous 8D emotion compatibility metrics, missingness handling, candidate integrity preservation, feature groups, and real artifact validation.
 
 ---
 
@@ -636,6 +637,80 @@ python scripts/run_phase3g_kg_l.py --config configs/kg_l.yaml
 Outputs:
 - `data/processed/ml-1m/graphs/kg_l.ttl`: Production KG-L Turtle graph (4.19 MB).
 - `data/processed/ml-1m/graphs/kg_l_validation.json`: Complete validation report and statistics.
+
+---
+
+## Phase 4A: Leakage-Safe KG-M + KG-L + Emotion Feature Engineering
+
+Phase 4A constructs a deterministic, candidate-level feature matrix for all **604,000 EASE candidate rows** ($6,040 \text{ users} \times 100 \text{ candidates}$) combining collaborative filtering scores, recency-weighted user KG-M metadata preferences, KG-L semantic compatibility, and continuous 8-dimensional emotion profiles.
+
+### 1. Strict Temporal & Data Leakage Rules
+- **TRAIN-Only Preference Profiles**: User preferences are derived **exclusively** from positive interactions in the TRAIN split (`rating >= 4.0` / `positive == 1`).
+- **Zero Leakage from VAL & TEST**: VAL and TEST interactions, positives, and timestamps are strictly forbidden from user profile construction.
+- **Reference Timestamps**: For each user, the reference time $t_{u, \max}$ is established strictly from their most recent positive interaction in the TRAIN split. All profile interaction timestamps satisfy $t \le t_{u, \max}$.
+- **Candidate Pool Isolation**: Asserts that zero candidate movies appear in the user's positive TRAIN history (`candidate_seen_in_positive_train == 0` for all 604,000 rows).
+
+### 2. Recency Weighting Formulation
+Each positive interaction $(u, i)$ with timestamp $t$ has age in days relative to $t_{u, \max}$:
+$$\text{age\_days} = \frac{t_{u, \max} - t}{86400.0}$$
+Preferences are weighted using a deterministic exponential half-life decay:
+$$w(u, i) = 0.5^{(\text{age\_days} / \text{half\_life\_days})}$$
+Configured with default $\text{half\_life\_days} = 365.0$. Normalized interaction weights $\tilde{w}_i = w_i / \sum_j w_j$ ensure history lengths remain comparable ($\sum_i \tilde{w}_i = 1.0$).
+
+### 3. Feature Dimensions (60 Total Columns)
+
+#### A. Base Candidate & History Features (10 features)
+- `candidate_rank`: 1..100 preserved from Phase 2B candidate pool.
+- `ease_score`: Preserved exactly from EASE candidate generation.
+- `user_positive_train_count`: Number of positive items in user's TRAIN history.
+- `candidate_seen_in_positive_train`: Asserted to be 0 for all rows.
+- Coverage flags: `candidate_has_tmdb_link`, `candidate_has_overview`, `candidate_has_kgm_metadata`, `candidate_has_kgl_semantics`, `candidate_emotion_available`, `user_emotion_profile_available`.
+
+#### B. KG-M Metadata Features (15 features)
+- **Affinities (6)**: `kgm_genre_affinity`, `kgm_director_affinity`, `kgm_actor_affinity`, `kgm_keyword_affinity`, `kgm_collection_affinity`, `kgm_decade_affinity` (sum of user profile weights for entities attached to candidate).
+- **Aggregates (3)**: `kgm_affinity_mean`, `kgm_affinity_max`, `kgm_categories_matched`.
+- **Interpretable Overlaps (6)**: `shared_genre_count`, `shared_director_count`, `shared_actor_count`, `shared_keyword_count`, `shared_collection_count`, `shared_decade_count` (exact entity overlap between candidate and user positive TRAIN history).
+
+#### C. KG-L Semantic Features (13 features)
+- **Affinities (5)**: `kgl_theme_affinity`, `kgl_setting_affinity`, `kgl_narrative_device_affinity`, `kgl_protagonist_type_affinity`, `kgl_source_material_affinity`.
+- **Aggregates (3)**: `kgl_semantic_affinity_mean`, `kgl_semantic_affinity_max`, `kgl_semantic_categories_matched`.
+- **Interpretable Overlaps (5)**: `shared_theme_count`, `shared_setting_count`, `shared_narrative_device_count`, `shared_protagonist_type_count`, `shared_source_material_count`.
+
+#### D. Continuous Emotion Features (20 features)
+- **Continuous User Profile**: Recency-weighted average of the full continuous 8D vectors for positive TRAIN movies with valid emotion extractions:
+  $$\mathbf{u}_{\text{emo}} = \frac{\sum_{i \in \mathcal{H}_{u, \text{emo}}^+} w(u, i) \cdot \mathbf{v}_i}{\sum_{i \in \mathcal{H}_{u, \text{emo}}^+} w(u, i)}$$
+  *(Note: continuous vectors preserve full scores in $[0.0, 1.0]$ without thresholding; the $>0.3$ threshold applies only to RDF graph edge creation).*
+- **Compatibility Metrics (4)**: `emotion_cosine_similarity`, `emotion_dot_product`, `emotion_l1_distance`, `emotion_l2_distance`.
+- **Raw Dimension Values (16)**: `candidate_emotion_{e}` and `user_emotion_{e}` for all 8 Plutchik emotions (`joy`, `trust`, `fear`, `surprise`, `sadness`, `disgust`, `anger`, `anticipation`).
+- **Missingness Handling**: Movies without valid emotion extractions (e.g., 22 production failures) produce `np.nan` values with explicit availability flags (`candidate_emotion_available = 0`), natively supported by gradient-boosted tree rerankers.
+
+### 4. Feature Groups for Downstream Ablation Studies
+The codebase defines modular feature groups in `src/features/constants.py`:
+- `BASE_FEATURES`: Baseline CF features + coverage flags.
+- `KGM_FEATURES`: `KGM_AFFINITY_FEATURES` + `KGM_OVERLAP_FEATURES`.
+- `KGL_SEMANTIC_FEATURES`: `KGL_SEMANTIC_AFFINITY_FEATURES` + `KGL_SEMANTIC_OVERLAP_FEATURES`.
+- `EMOTION_FEATURES`: `EMOTION_COMPATIBILITY_FEATURES` + `CANDIDATE_EMOTION_FEATURES` + `USER_EMOTION_FEATURES`.
+- `ALL_KG_FEATURES`: Combined KG-M, KG-L, and Emotion features.
+- `ALL_FEATURES`: Complete 58-feature set (excluding identifiers `user_idx`, `movie_idx`).
+
+These groups enable systematic ablation experiments in later phases:
+- Model 1: EASE Baseline (`BASE_FEATURES`)
+- Model 2: EASE + KG-M (`BASE_FEATURES + KGM_FEATURES`)
+- Model 3: EASE + KG-L Semantics (`BASE_FEATURES + KGL_SEMANTIC_FEATURES`)
+- Model 4: EASE + Emotion (`BASE_FEATURES + EMOTION_FEATURES`)
+- Model 5: EASE + KG-M + KG-L (`BASE_FEATURES + KGM_FEATURES + KGL_SEMANTIC_FEATURES`)
+- Model 6: Full Multimodal PlotGraph Model (`ALL_FEATURES`)
+
+### 5. Running Phase 4A Pipeline
+```bash
+python scripts/run_phase4a_kg_features.py --config configs/features.yaml
+```
+
+Output Artifacts:
+- `data/processed/ml-1m/features/kg_candidate_features.parquet` (38.24 MB, 604,000 rows, 60 columns).
+- `data/processed/ml-1m/features/kg_feature_summary.json`: Detailed descriptive statistics, coverage, missingness, and leakage verification report.
+- `data/processed/ml-1m/features/user_profiles/`: Reusable user profile artifacts (`user_emotion_profiles.parquet`, `user_kgm_profiles.json`, `user_kgl_profiles.json`).
+
 
 
 

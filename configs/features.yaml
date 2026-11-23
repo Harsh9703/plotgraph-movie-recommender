@@ -1,0 +1,31 @@
+# ==============================================================================
+# PlotGraph Phase 4A: Feature Engineering Configuration
+# ==============================================================================
+
+# Input dataset paths
+input_paths:
+  train_split: "data/processed/ml-1m/splits/train.parquet"
+  candidate_pool: "data/processed/ml-1m/candidates/top100_candidates.parquet"
+  metadata: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
+  semantic_validated: "data/processed/ml-1m/kg_l/full_extraction/semantic_validated.parquet"
+  emotion_vectors: "data/processed/ml-1m/kg_l/full_extraction/emotion_vectors.parquet"
+  kg_m_graph: "data/processed/ml-1m/graphs/kg_m.ttl"
+  kg_l_graph: "data/processed/ml-1m/graphs/kg_l.ttl"
+
+# Output artifact paths
+output_paths:
+  features_parquet: "data/processed/ml-1m/features/kg_candidate_features.parquet"
+  features_summary: "data/processed/ml-1m/features/kg_feature_summary.json"
+  user_profiles_dir: "data/processed/ml-1m/features/user_profiles"
+
+# Recency weighting parameters
+recency:
+  half_life_days: 365.0
+  decay_type: "half_life"  # formulation: 0.5 ** (age_days / half_life_days)
+
+# Interaction filtering
+filtering:
+  positive_threshold: 4.0  # rating >= 4.0 / positive == 1
+
+# Random seed for reproducibility
+seed: 42
