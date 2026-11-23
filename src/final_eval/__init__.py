@@ -1,4 +1,4 @@
-"""PlotGraph Phase 5B Final Evaluation Preparation Package."""
+"""PlotGraph Phase 5B and 5C Final Evaluation Package."""
 
 from src.final_eval.ease_refit import (
     generate_test_candidates,
@@ -19,6 +19,14 @@ from src.final_eval.model_refit import (
     generate_unlabeled_predictions,
     refit_final_reranker,
 )
+from src.final_eval.test_evaluator import (
+    analyze_rank_movements,
+    analyze_win_loss,
+    compute_test_bootstrap_uncertainty,
+    compute_test_coverage_stats,
+    evaluate_test_predictions,
+    verify_manifest_and_frozen_artifacts,
+)
 
 __all__ = [
     "load_train_val_history",
@@ -32,4 +40,10 @@ __all__ = [
     "generate_unlabeled_predictions",
     "generate_final_evaluation_manifest",
     "compute_file_sha256",
+    "verify_manifest_and_frozen_artifacts",
+    "compute_test_coverage_stats",
+    "evaluate_test_predictions",
+    "analyze_win_loss",
+    "analyze_rank_movements",
+    "compute_test_bootstrap_uncertainty",
 ]

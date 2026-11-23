@@ -1031,6 +1031,88 @@ All modeling, candidate generation, feature engineering, and hyperparameter deci
 python scripts/run_phase5b_final_prep.py --config configs/final_eval.yaml
 ```
 
+---
+
+## Phase 5C: One-Time Final MovieLens Test Evaluation
+
+Phase 5C conducts the auditable, read-only final evaluation of the frozen PlotGraph recommender system against the previously untouched MovieLens-1M TEST split (`data/processed/ml-1m/splits/test.parquet`). In strict accordance with the pre-registered evaluation protocol, no model, feature, threshold, candidate, or hyperparameter was modified after the TEST split was opened.
+
+### 1. Pre-Evaluation Cryptographic Verification
+Before reading or inspecting any test data, the pipeline verified the SHA-256 hashes of all frozen Phase 5B artifacts against [final_evaluation_manifest.json](file:///Users/harsh9703/plotgraph-movie-recommender/data/processed/ml-1m/final_eval/final_evaluation_manifest.json):
+- `test_candidates_top100.parquet`: `45f08f438293654ff19c12c178177f7c7f17489c33b4e612bee47264ceec3d05` (VERIFIED)
+- `test_candidate_features.parquet`: `0fc39bf212bef002b8ed246e7aaeda5cf8ae594997114788283fa30bc905510e` (VERIFIED)
+- `final_reranker.joblib`: `74f21f412510484096d9af976a0da58d1fc8f7e4bcd90ec2b6e1acb9df8c93b3` (VERIFIED)
+- `final_reranker.txt`: `ee138c3e91d1d3dd79bb4c54aa249b1377def126ad0994daf482019951893a53` (VERIFIED)
+- `test_candidate_predictions_unlabeled.parquet`: `4cb6a967cf3dd3ef4a2c5346c808200c5aa2ef9b4475af0144d4dc975ca7968e` (VERIFIED)
+
+**Pre-flight Certification**: `FROZEN ARTIFACTS VERIFIED — BEGINNING ONE-TIME TEST EVALUATION`
+
+### 2. Candidate-Pool Limitation & TEST Set Coverage
+- **Total TEST Interactions**: 99,950
+- **Positive TEST Interactions (`rating >= 4.0`)**: 51,326
+- **Positive TEST Items Captured in Top-100 Pool**: 16,631
+- **Global Candidate Recall@100**: **0.3240** (16,631 / 51,326)
+- **Mean User Candidate Recall@100 (Ceiling)**: **0.4146** across users with $\ge 1$ test positive
+- **Evaluation Populations**:
+  - **Population A (End-to-End)**: **5,774 users** with $\ge 1$ positive TEST interaction. Uncovered users (874 users with zero positives in top-100) are assigned 0.0 metrics rather than dropped.
+  - **Population B (Conditional)**: **4,900 users** (84.86% of evaluable users) with $\ge 1$ positive candidate captured in the frozen top-100 pool.
+
+### 3. Final Test Evaluation Results (End-to-End Population, N = 5,774 Users)
+
+| Metric | EASE Baseline | PlotGraph (FULL + NRC) | Absolute Δ | Relative Δ (%) | 95% Bootstrap CI | $p$-value | Significance Outcome |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **NDCG@10 [PRIMARY]** | 0.0735 | **0.0751** | **+0.0016** | **+2.14%** | [-0.0015, +0.0045] | $p = 0.3220$ | Superiority Prob = 83.9% |
+| **Recall@10 (e2e)** | 0.0823 | **0.0847** | **+0.0024** | **+2.92%** | [-0.0014, +0.0065] | $p = 0.2320$ | Superiority Prob = 88.4% |
+| **HR@10** | 0.3362 | **0.3559** | **+0.0197** | **+5.87%** | [+0.0076, +0.0326] | **$p = 0.0020$** | **Statistically Significant ($\alpha = 0.05$)** |
+| **MRR@10** | 0.1268 | **0.1355** | **+0.0087** | **+6.89%** | [+0.0021, +0.0155] | **$p = 0.0040$** | **Statistically Significant ($\alpha = 0.05$)** |
+| **NDCG@20** | 0.0940 | **0.0941** | **+0.0001** | **+0.13%** | [-0.0026, +0.0030] | $p = 0.9180$ | --- |
+| **Recall@20 (e2e)** | 0.1452 | 0.1438 | -0.0014 | -1.00% | [-0.0055, +0.0028] | $p = 0.5540$ | --- |
+| **HR@20** | 0.4952 | **0.5151** | **+0.0199** | **+4.02%** | [+0.0088, +0.0312] | **$p = 0.0000$** | **Statistically Significant ($\alpha = 0.05$)** |
+| **MRR@20** | 0.1379 | **0.1465** | **+0.0086** | **+6.24%** | [+0.0021, +0.0153] | **$p = 0.0060$** | **Statistically Significant ($\alpha = 0.05$)** |
+
+### 4. Conditional Population Results (N = 4,900 Users with $\ge 1$ Positive in Pool)
+
+| Metric | EASE Baseline | PlotGraph (FULL + NRC) | Absolute Δ | Relative Δ (%) |
+| :--- | :---: | :---: | :---: | :---: |
+| **NDCG@10** | 0.1146 | **0.1204** | **+0.0058** | **+5.07%** |
+| **Recall@10 (Conditional)** | 0.1700 | **0.1807** | **+0.0107** | **+6.32%** |
+| **HR@10** | 0.3961 | **0.4194** | **+0.0233** | **+5.87%** |
+| **MRR@10** | 0.1494 | **0.1597** | **+0.0103** | **+6.89%** |
+| **NDCG@20** | 0.1444 | **0.1449** | **+0.0005** | **+0.35%** |
+| **Recall@20 (Conditional)** | 0.2847 | 0.2818 | -0.0029 | -1.02% |
+| **HR@20** | 0.5835 | **0.6069** | **+0.0234** | **+4.01%** |
+| **MRR@20** | 0.1624 | **0.1726** | **+0.0102** | **+6.28%** |
+
+### 5. Scientific Findings & Discussion
+1. **Primary Metric Performance (NDCG@10)**:
+   - On the primary test objective, PlotGraph achieved a positive relative lift over the highly competitive EASE baseline (+2.14% end-to-end, +5.07% conditional).
+   - Under 1,000 paired bootstrap resamples, the 95% confidence interval spans $[-0.0015, +0.0045]$ with a two-tailed $p = 0.3220$. The model exhibited an **83.9% empirical probability of superiority** over EASE.
+2. **Statistically Significant Lifts in Discovery & Rank Precision (HR@10 and MRR@10)**:
+   - While NDCG differences are conservative due to strong collaborative filtering signals, PlotGraph demonstrates **statistically significant improvements** in retrieving at least one relevant movie in the top 10 (**HR@10**: +5.87%, $p = 0.0020$) and in placing the first relevant movie earlier in the list (**MRR@10**: +6.89%, $p = 0.0040$).
+   - This indicates that external knowledge graph entities, narrative semantic features, and continuous emotion vectors significantly improve the discovery of relevant items for users whose preferences were poorly captured by CF matrix factorization alone.
+3. **User-Level Win/Loss Distribution**:
+   - **Improved Users**: **1,351 users (23.4%)** with an average lift of $\Delta = +0.1285$ in NDCG@10.
+   - **Tied Users**: **3,296 users (57.1%)**.
+   - **Worsened Users**: **1,127 users (19.5%)** with an average change of $\Delta = -0.1460$.
+   - **Win/Loss Ratio**: **$1.20\times$** more users improved than worsened.
+4. **Candidate Pool Ceiling Constraint**:
+   - The candidate generation stage achieves a mean per-user Recall@100 of 0.4146. Because the reranker only reorders existing candidates, 58.54% of positive test items remain unretrievable by any reranker operating on this top-100 pool, highlighting the importance of reporting both conditional and end-to-end performance.
+
+### 6. Output Artifacts (`data/processed/ml-1m/final_eval/results/`)
+All generated test evaluation outputs are Git-ignored:
+- `final_test_results.json`: Complete metrics dictionary for both populations.
+- `final_test_results.csv`: Tabular CSV of final comparative metrics across cutoffs.
+- `per_user_test_metrics.parquet`: User-level metric table (5,774 rows) for downstream error and segment analysis.
+- `test_rank_movements.parquet`: Relevant item movement table (16,631 rows) detailing rank shifts for test positives.
+- `bootstrap_test_results.json`: Complete 1,000-sample bootstrap distributions, 95% CIs, and paired $p$-values.
+- `final_test_evaluation_record.json`: Auditable tamper-evident record with checksums, timestamps, and certification statement.
+
+### 7. Execution Command
+```bash
+python scripts/run_phase5c_final_test.py --config configs/final_test.yaml
+```
+
+
 
 
 

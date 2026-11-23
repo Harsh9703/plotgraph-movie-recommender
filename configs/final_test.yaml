@@ -1,0 +1,23 @@
+# Phase 5C Final One-Time Test Evaluation Configuration
+
+inputs:
+  manifest_path: "data/processed/ml-1m/final_eval/final_evaluation_manifest.json"
+  unlabeled_predictions_path: "data/processed/ml-1m/final_eval/test_candidate_predictions_unlabeled.parquet"
+  candidates_path: "data/processed/ml-1m/final_eval/test_candidates_top100.parquet"
+  test_split_path: "data/processed/ml-1m/splits/test.parquet"
+
+outputs:
+  results_dir: "data/processed/ml-1m/final_eval/results"
+  final_results_json: "data/processed/ml-1m/final_eval/results/final_test_results.json"
+  final_results_csv: "data/processed/ml-1m/final_eval/results/final_test_results.csv"
+  per_user_metrics_parquet: "data/processed/ml-1m/final_eval/results/per_user_test_metrics.parquet"
+  rank_movements_parquet: "data/processed/ml-1m/final_eval/results/test_rank_movements.parquet"
+  bootstrap_results_json: "data/processed/ml-1m/final_eval/results/bootstrap_test_results.json"
+  final_audit_record_json: "data/processed/ml-1m/final_eval/results/final_test_evaluation_record.json"
+
+evaluation:
+  cutoffs: [10, 20]
+  positive_threshold: 4.0
+  n_bootstraps: 1000
+  bootstrap_seed: 42
+  primary_metric: "ndcg@10"
