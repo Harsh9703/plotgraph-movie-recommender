@@ -1,0 +1,66 @@
+{
+  "common_movies_count": 3723,
+  "average_cosine_similarity": 0.4866,
+  "cosine_similarity_std": 0.2665,
+  "cosine_similarity_min": 0.0,
+  "cosine_similarity_max": 1.0,
+  "cosine_similarity_median": 0.5252,
+  "per_emotion_comparison": {
+    "joy": {
+      "nrc_mean": 0.1369,
+      "nrc_std": 0.13,
+      "qwen_mean": 0.0688,
+      "qwen_std": 0.155,
+      "pearson_correlation": 0.2614
+    },
+    "trust": {
+      "nrc_mean": 0.1945,
+      "nrc_std": 0.1708,
+      "qwen_mean": 0.0381,
+      "qwen_std": 0.1091,
+      "pearson_correlation": 0.0414
+    },
+    "fear": {
+      "nrc_mean": 0.1579,
+      "nrc_std": 0.1359,
+      "qwen_mean": 0.1336,
+      "qwen_std": 0.2092,
+      "pearson_correlation": 0.2674
+    },
+    "surprise": {
+      "nrc_mean": 0.0782,
+      "nrc_std": 0.0937,
+      "qwen_mean": 0.1215,
+      "qwen_std": 0.1896,
+      "pearson_correlation": 0.0361
+    },
+    "sadness": {
+      "nrc_mean": 0.107,
+      "nrc_std": 0.1088,
+      "qwen_mean": 0.1194,
+      "qwen_std": 0.1863,
+      "pearson_correlation": 0.1389
+    },
+    "disgust": {
+      "nrc_mean": 0.0711,
+      "nrc_std": 0.0923,
+      "qwen_mean": 0.0835,
+      "qwen_std": 0.1475,
+      "pearson_correlation": 0.1417
+    },
+    "anger": {
+      "nrc_mean": 0.108,
+      "nrc_std": 0.111,
+      "qwen_mean": 0.0902,
+      "qwen_std": 0.1783,
+      "pearson_correlation": 0.1899
+    },
+    "anticipation": {
+      "nrc_mean": 0.1465,
+      "nrc_std": 0.1293,
+      "qwen_mean": 0.2826,
+      "qwen_std": 0.1812,
+      "pearson_correlation": -0.0281
+    }
+  }
+}

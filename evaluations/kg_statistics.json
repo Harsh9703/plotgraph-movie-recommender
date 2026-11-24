@@ -1,0 +1,80 @@
+{
+  "total_combined_triples": 227562,
+  "kg_m": {
+    "name": "KG-M (Metadata Knowledge Graph)",
+    "total_triples": 129658,
+    "total_entities": 22510,
+    "movies": 3883,
+    "persons": 10417,
+    "genres": 20,
+    "keywords": 7815,
+    "collections": 364,
+    "release_decades": 11,
+    "predicates": {
+      "hasKeyword": 25591,
+      "starsActor": 18502,
+      "hasGenre": 9120,
+      "title": 3883,
+      "movieLensId": 3883,
+      "internalMovieIndex": 3883,
+      "tmdbId": 3828,
+      "tmdbTitle": 3828,
+      "releaseDate": 3824,
+      "releaseDecade": 3824,
+      "directedBy": 3803,
+      "inCollection": 669,
+      "rdfs:label": 22510,
+      "rdf:type": 22510
+    },
+    "integrity": {
+      "has_bogus_uris": false,
+      "all_movie_ids_recoverable": true,
+      "validation_passed": true
+    }
+  },
+  "kg_l": {
+    "name": "KG-L (Plot Semantics & Emotion Knowledge Graph)",
+    "total_triples": 97904,
+    "total_entities": 16556,
+    "movies": 3810,
+    "themes": 2563,
+    "settings": 2287,
+    "narrative_devices": 365,
+    "protagonist_types": 1899,
+    "source_materials": 172,
+    "emotions": 8,
+    "emotion_associations": 5452,
+    "relations": {
+      "hasTheme": 7181,
+      "hasSetting": 4330,
+      "hasNarrativeDevice": 1419,
+      "hasProtagonistType": 4894,
+      "basedOn": 407,
+      "evokesEmotion": 5452,
+      "hasEmotionAssociation": 5452
+    },
+    "emotion_metrics": {
+      "prominent_edge_threshold": 0.3,
+      "total_evokes_emotion_edges": 5452,
+      "per_emotion_counts": {
+        "joy": 589,
+        "trust": 201,
+        "fear": 1028,
+        "surprise": 595,
+        "sadness": 731,
+        "disgust": 350,
+        "anger": 543,
+        "anticipation": 1415
+      },
+      "movies_with_at_least_one_emotion_edge": 2870,
+      "emotion_edge_movie_coverage_pct": 75.33
+    },
+    "semantic_coverage": {
+      "theme_coverage_pct": 99.76,
+      "setting_coverage_pct": 99.87,
+      "protagonist_coverage_pct": 95.43,
+      "device_coverage_pct": 36.48,
+      "source_material_coverage_pct": 10.68
+    }
+  }
+}

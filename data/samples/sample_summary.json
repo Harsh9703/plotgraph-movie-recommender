@@ -1,0 +1,273 @@
+{
+  "sample_size": 30,
+  "random_seed": 42,
+  "source_catalog_size": 3883,
+  "eligible_movies": 3810,
+  "columns": [
+    "movie_id",
+    "movie_idx",
+    "ml_title",
+    "ml_genres",
+    "tmdb_id",
+    "tmdb_title",
+    "overview",
+    "release_date",
+    "release_decade",
+    "tmdb_genres",
+    "collection_name",
+    "director",
+    "top_actors",
+    "keywords",
+    "popularity",
+    "vote_average",
+    "vote_count",
+    "has_tmdb_link",
+    "has_overview",
+    "has_credits",
+    "has_keywords",
+    "sample_seed",
+    "sample_size"
+  ],
+  "movies": [
+    {
+      "movie_idx": 151,
+      "movie_id": 153,
+      "tmdb_id": 414,
+      "title": "Batman Forever (1995)",
+      "release_decade": "1990s",
+      "overview_len": 469
+    },
+    {
+      "movie_idx": 432,
+      "movie_id": 436,
+      "tmdb_id": 2124,
+      "title": "Color of Night (1994)",
+      "release_decade": "1990s",
+      "overview_len": 213
+    },
+    {
+      "movie_idx": 481,
+      "movie_id": 485,
+      "tmdb_id": 9593,
+      "title": "Last Action Hero (1993)",
+      "release_decade": "1990s",
+      "overview_len": 278
+    },
+    {
+      "movie_idx": 489,
+      "movie_id": 493,
+      "tmdb_id": 9516,
+      "title": "Menace II Society (1993)",
+      "release_decade": "1990s",
+      "overview_len": 209
+    },
+    {
+      "movie_idx": 889,
+      "movie_id": 901,
+      "tmdb_id": 13320,
+      "title": "Funny Face (1957)",
+      "release_decade": "1950s",
+      "overview_len": 136
+    },
+    {
+      "movie_idx": 916,
+      "movie_id": 928,
+      "tmdb_id": 223,
+      "title": "Rebecca (1940)",
+      "release_decade": "1940s",
+      "overview_len": 83
+    },
+    {
+      "movie_idx": 924,
+      "movie_id": 936,
+      "tmdb_id": 1859,
+      "title": "Ninotchka (1939)",
+      "release_decade": "1930s",
+      "overview_len": 142
+    },
+    {
+      "movie_idx": 1040,
+      "movie_id": 1054,
+      "tmdb_id": 49471,
+      "title": "Get on the Bus (1996)",
+      "release_decade": "1990s",
+      "overview_len": 381
+    },
+    {
+      "movie_idx": 1054,
+      "movie_id": 1068,
+      "tmdb_id": 28120,
+      "title": "Crossfire (1947)",
+      "release_decade": "1940s",
+      "overview_len": 105
+    },
+    {
+      "movie_idx": 1184,
+      "movie_id": 1202,
+      "tmdb_id": 13446,
+      "title": "Withnail and I (1987)",
+      "release_decade": "1980s",
+      "overview_len": 869
+    },
+    {
+      "movie_idx": 1214,
+      "movie_id": 1233,
+      "tmdb_id": 387,
+      "title": "Boat, The (Das Boot) (1981)",
+      "release_decade": "1980s",
+      "overview_len": 206
+    },
+    {
+      "movie_idx": 1372,
+      "movie_id": 1393,
+      "tmdb_id": 9390,
+      "title": "Jerry Maguire (1996)",
+      "release_decade": "1990s",
+      "overview_len": 388
+    },
+    {
+      "movie_idx": 1452,
+      "movie_id": 1482,
+      "tmdb_id": 11844,
+      "title": "Van, The (1996)",
+      "release_decade": "1990s",
+      "overview_len": 396
+    },
+    {
+      "movie_idx": 1544,
+      "movie_id": 1585,
+      "tmdb_id": 65046,
+      "title": "Love Serenade (1996)",
+      "release_decade": "1990s",
+      "overview_len": 903
+    },
+    {
+      "movie_idx": 1585,
+      "movie_id": 1628,
+      "tmdb_id": 75250,
+      "title": "Locusts, The (1997)",
+      "release_decade": "1990s",
+      "overview_len": 205
+    },
+    {
+      "movie_idx": 1604,
+      "movie_id": 1650,
+      "tmdb_id": 45019,
+      "title": "Washington Square (1997)",
+      "release_decade": "1990s",
+      "overview_len": 272
+    },
+    {
+      "movie_idx": 1786,
+      "movie_id": 1855,
+      "tmdb_id": 31220,
+      "title": "Krippendorf's Tribe (1998)",
+      "release_decade": "1990s",
+      "overview_len": 452
+    },
+    {
+      "movie_idx": 1980,
+      "movie_id": 2049,
+      "tmdb_id": 25445,
+      "title": "Happiest Millionaire, The (1967)",
+      "release_decade": "1960s",
+      "overview_len": 390
+    },
+    {
+      "movie_idx": 2216,
+      "movie_id": 2285,
+      "tmdb_id": 14794,
+      "title": "If.... (1968)",
+      "release_decade": "1960s",
+      "overview_len": 450
+    },
+    {
+      "movie_idx": 2316,
+      "movie_id": 2385,
+      "tmdb_id": 12257,
+      "title": "Home Fries (1998)",
+      "release_decade": "1990s",
+      "overview_len": 435
+    },
+    {
+      "movie_idx": 2407,
+      "movie_id": 2476,
+      "tmdb_id": 10015,
+      "title": "Heartbreak Ridge (1986)",
+      "release_decade": "1980s",
+      "overview_len": 160
+    },
+    {
+      "movie_idx": 2607,
+      "movie_id": 2676,
+      "tmdb_id": 12117,
+      "title": "Instinct (1999)",
+      "release_decade": "1990s",
+      "overview_len": 580
+    },
+    {
+      "movie_idx": 2994,
+      "movie_id": 3063,
+      "tmdb_id": 9264,
+      "title": "Poison Ivy (1992)",
+      "release_decade": "1990s",
+      "overview_len": 119
+    },
+    {
+      "movie_idx": 3188,
+      "movie_id": 3257,
+      "tmdb_id": 619,
+      "title": "Bodyguard, The (1992)",
+      "release_decade": "1990s",
+      "overview_len": 331
+    },
+    {
+      "movie_idx": 3252,
+      "movie_id": 3321,
+      "tmdb_id": 210307,
+      "title": "Waiting Game, The (2000)",
+      "release_decade": "1990s",
+      "overview_len": 75
+    },
+    {
+      "movie_idx": 3313,
+      "movie_id": 3382,
+      "tmdb_id": 159727,
+      "title": "Song of Freedom (1936)",
+      "release_decade": "1930s",
+      "overview_len": 608
+    },
+    {
+      "movie_idx": 3390,
+      "movie_id": 3459,
+      "tmdb_id": 33516,
+      "title": "Gothic (1986)",
+      "release_decade": "1980s",
+      "overview_len": 916
+    },
+    {
+      "movie_idx": 3493,
+      "movie_id": 3562,
+      "tmdb_id": 40562,
+      "title": "Committed (2000)",
+      "release_decade": "2000s",
+      "overview_len": 497
+    },
+    {
+      "movie_idx": 3769,
+      "movie_id": 3839,
+      "tmdb_id": 16146,
+      "title": "Phantasm IV: Oblivion (1998)",
+      "release_decade": "1990s",
+      "overview_len": 379
+    },
+    {
+      "movie_idx": 3779,
+      "movie_id": 3849,
+      "tmdb_id": 27452,
+      "title": "Spiral Staircase, The (1946)",
+      "release_decade": "1940s",
+      "overview_len": 511
+    }
+  ]
+}

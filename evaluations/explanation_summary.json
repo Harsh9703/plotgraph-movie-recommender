@@ -1,0 +1,39 @@
+{
+  "total_explanations": 60400,
+  "total_users": 6040,
+  "coverage_kgm_pct": 99.95,
+  "coverage_kgl_pct": 93.71,
+  "coverage_emotion_pct": 80.2,
+  "coverage_text_pct": 51.82,
+  "coverage_collaborative_fallback_pct": 0.04,
+  "explanation_type_distribution": {
+    "hybrid": {
+      "count": 55245,
+      "percentage": 91.47
+    },
+    "metadata-driven": {
+      "count": 5052,
+      "percentage": 8.36
+    },
+    "semantic-theme-driven": {
+      "count": 41,
+      "percentage": 0.07
+    },
+    "emotion-driven": {
+      "count": 36,
+      "percentage": 0.06
+    },
+    "collaborative-fallback": {
+      "count": 26,
+      "percentage": 0.04
+    }
+  },
+  "average_evidence_paths_per_rec": 9.49,
+  "average_support_movies_per_rec": 3.0,
+  "validation_metrics": {
+    "total_validated": 60400,
+    "validation_failures": 0,
+    "validation_pass_rate": 1.0,
+    "zero_hallucination_verified": true
+  }
+}

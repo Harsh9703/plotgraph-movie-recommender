@@ -222,8 +222,18 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Project data and parquet cache
-/data/
+# Project data and large generated artifacts
+/data/*
+!/data/README.md
+!/data/samples/
 *.parquet
+*.joblib
+*.npy
+*.ttl
+*.tar.gz
+*.zip
+
+# Temporary development files
+curl_response
 
 .DS_Store

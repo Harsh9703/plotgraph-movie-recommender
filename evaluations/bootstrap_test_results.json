@@ -1,0 +1,82 @@
+{
+  "delta_ndcg@10": {
+    "point_delta": 0.001576,
+    "ci_lower_95": -0.001455,
+    "ci_upper_95": 0.004536,
+    "prob_a_superior": 0.839,
+    "paired_p_value": 0.322,
+    "n_bootstraps": 1000,
+    "n_users": 5774,
+    "is_significant_95": false
+  },
+  "delta_recall@10": {
+    "point_delta": 0.002402,
+    "ci_lower_95": -0.001366,
+    "ci_upper_95": 0.00646,
+    "prob_a_superior": 0.884,
+    "paired_p_value": 0.232,
+    "n_bootstraps": 1000,
+    "n_users": 5774,
+    "is_significant_95": false
+  },
+  "delta_hr@10": {
+    "point_delta": 0.019744,
+    "ci_lower_95": 0.00762,
+    "ci_upper_95": 0.03256,
+    "prob_a_superior": 0.999,
+    "paired_p_value": 0.002,
+    "n_bootstraps": 1000,
+    "n_users": 5774,
+    "is_significant_95": true
+  },
+  "delta_mrr@10": {
+    "point_delta": 0.008732,
+    "ci_lower_95": 0.00208,
+    "ci_upper_95": 0.015457,
+    "prob_a_superior": 0.998,
+    "paired_p_value": 0.004,
+    "n_bootstraps": 1000,
+    "n_users": 5774,
+    "is_significant_95": true
+  },
+  "delta_ndcg@20": {
+    "point_delta": 0.000122,
+    "ci_lower_95": -0.002562,
+    "ci_upper_95": 0.002987,
+    "prob_a_superior": 0.541,
+    "paired_p_value": 0.918,
+    "n_bootstraps": 1000,
+    "n_users": 5774,
+    "is_significant_95": false
+  },
+  "delta_recall@20": {
+    "point_delta": -0.00145,
+    "ci_lower_95": -0.005488,
+    "ci_upper_95": 0.002817,
+    "prob_a_superior": 0.277,
+    "paired_p_value": 0.554,
+    "n_bootstraps": 1000,
+    "n_users": 5774,
+    "is_significant_95": false
+  },
+  "delta_hr@20": {
+    "point_delta": 0.019917,
+    "ci_lower_95": 0.008828,
+    "ci_upper_95": 0.031179,
+    "prob_a_superior": 1.0,
+    "paired_p_value": 0.0,
+    "n_bootstraps": 1000,
+    "n_users": 5774,
+    "is_significant_95": true
+  },
+  "delta_mrr@20": {
+    "point_delta": 0.008607,
+    "ci_lower_95": 0.002116,
+    "ci_upper_95": 0.015293,
+    "prob_a_superior": 0.997,
+    "paired_p_value": 0.006,
+    "n_bootstraps": 1000,
+    "n_users": 5774,
+    "is_significant_95": true
+  }
+}
