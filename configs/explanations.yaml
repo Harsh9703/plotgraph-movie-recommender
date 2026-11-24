@@ -1,0 +1,24 @@
+# Phase 6 Configuration: Grounded, Auditable Recommendation Explanations
+
+inputs:
+  model_path: "data/processed/ml-1m/final_eval/final_reranker.joblib"
+  predictions_path: "data/processed/ml-1m/final_eval/test_candidate_predictions_unlabeled.parquet"
+  features_path: "data/processed/ml-1m/final_eval/test_candidate_features.parquet"
+  train_path: "data/processed/ml-1m/splits/train.parquet"
+  val_path: "data/processed/ml-1m/splits/val.parquet"
+  metadata_path: "data/processed/ml-1m/metadata/movies_with_tmdb.parquet"
+  semantic_path: "data/processed/ml-1m/kg_l/full_extraction/semantic_validated.parquet"
+  emotion_vectors_path: "data/processed/ml-1m/kg_l/full_extraction/emotion_vectors.parquet"
+  emotion_evidence_path: "data/processed/ml-1m/kg_l/full_extraction/emotion_validated_evidence.jsonl"
+  test_path: "data/processed/ml-1m/splits/test.parquet"  # Used ONLY for post-hoc descriptive case study analysis
+
+outputs:
+  output_dir: "data/processed/ml-1m/explanations"
+  explanations_parquet: "data/processed/ml-1m/explanations/recommendation_explanations.parquet"
+  summary_json: "data/processed/ml-1m/explanations/explanation_summary.json"
+
+parameters:
+  k_top: 10
+  max_support_movies: 3
+  min_emotion_threshold: 0.2
+  recency_half_life_days: 365.0
