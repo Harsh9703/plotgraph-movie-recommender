@@ -1321,6 +1321,95 @@ To regenerate and audit the complete Phase 6 explanation suite:
 python scripts/run_phase6_explanations.py --config configs/explanations.yaml
 ```
 
+---
+
+## Phase 7: Interactive Streamlit Demo for Cold-Start Users
+
+Phase 7 implements an interactive presentation and demonstration layer over the frozen PlotGraph system. A person with no prior MovieLens user ID can search the catalog, choose 3–10 liked movies, receive real-time personalized recommendations, inspect grounded multi-hop Knowledge Graph explanations, and explore the project's empirical research results.
+
+### 1. Interactive Demo Architecture
+
+```
+                    ┌────────────────────────────────────────────────────────┐
+                    │               Cold-Start User Input                    │
+                    │      (3–10 liked movies selected in Streamlit UI)      │
+                    └───────────────────────────┬────────────────────────────┘
+                                                │
+         ┌──────────────────────────────────────┼──────────────────────────────────────┐
+         ▼                                      ▼                                      ▼
+┌──────────────────┐                 ┌────────────────────┐                 ┌──────────────────────┐
+│ Frozen EASE Item │                 │ Cold-Start Equal-  │                 │ In-Memory Knowledge  │
+│  Matrix B (500)  │                 │ Weight Profiler    │                 │      Index           │
+│   (3883 x 3883)  │                 │ (KG-M, KG-L, Qwen) │                 │ (Multi-Hop Paths)    │
+└────────┬─────────┘                 └──────────┬─────────┘                 └──────────┬───────────┘
+         │                                      │                                      │
+         │ Candidate Scoring                    │ User Profiles                        │ Graph Evidence
+         ▼                                      ▼                                      ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   ColdStartRecommender                                       │
+│  1. Vectorized Candidate Scoring: scores = sum_j B[j, :] with selected items masked        │
+│  2. Top-100 Candidate Extraction: Excludes selected items strictly (< 1 ms)                 │
+│  3. Exact 89-Feature Assembly: Phase 4A/4B/4C feature builders on cold-start profile         │
+│  4. Frozen LightGBM Reranking: Predicts scores and assigns final PlotGraph ranks (< 50 ms)   │
+└───────────────────────────────────────────────┬──────────────────────────────────────────────┘
+                                                │
+                                                ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                ColdStartExplanationAdapter                                   │
+│  - Adapts Phase 6 engine: Selected movies function as the user's positive history            │
+│  - Multi-hop graph path extraction for KG-M (metadata) and KG-L (plot semantics)             │
+│  - Quantitative continuous Qwen 8D emotion profile alignment (radar & bar charts)            │
+│  - Automated ExplanationValidator assertion (zero hallucination, verified support movies)    │
+│  - Dynamic Graphviz visual diagram generation                                                │
+└───────────────────────────────────────────────┬──────────────────────────────────────────────┘
+                                                │
+                                                ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                Streamlit Web Application                                     │
+│  - Tab 1: 🎬 Recommend (Catalog search, demo presets, sub-second latency, rank movements)     │
+│  - Tab 2: 🔗 Explain (Interactive Graphviz diagram, KG-M vs KG-L cards, emotion radar)      │
+│  - Tab 3: 📊 Research (Validation ablations +9.2%, final test lifts HR/MRR, zero-leakage)   │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 2. Key Capabilities & Design Decisions
+
+1. **No Retraining or Modifying the Research Pipeline**:
+   - The demo strictly loads frozen artifacts: LightGBM (`final_reranker.joblib`), EASE item matrix ($\lambda = 500$), Qwen continuous vectors, and text embeddings.
+   - Offline preparation utility (`scripts/prepare_demo_artifacts.py`) reconstructed the frozen EASE item-item matrix ($3,883 \times 3,883$, float32) from positive TRAIN+VAL history in 3.8s.
+2. **Cold-Start Equal-Weight Profile Semantics**:
+   - Because a brand-new user has no interaction timestamps, explicitly selected liked movies are assigned equal weight ($w_i = 1/N$). No timestamps or ratings are fabricated.
+3. **Sub-Second Interactive Latency**:
+   - EASE scoring takes $< 300\,\mu\text{s}$.
+   - Feature construction for 100 candidates takes $< 20\,\text{ms}$.
+   - LightGBM prediction and rank movement calculation takes $< 2\,\text{ms}$.
+   - Full interactive end-to-end recommendation finishes in **$< 100\,\text{ms}$** (tested locally on macOS).
+4. **Three Built-in Presentation Presets**:
+   - **Preset A — Mainstream Mixed**: *Toy Story (1995)*, *Matrix, The (1999)*, *Titanic (1997)*.
+   - **Preset B — Sci-Fi / Adventure**: *Star Wars: Episode IV - A New Hope (1977)*, *Jurassic Park (1993)*, *Terminator 2: Judgment Day (1991)*, *Back to the Future (1985)*.
+   - **Preset C — Crime / Drama**: *Godfather, The (1972)*, *Pulp Fiction (1994)*, *GoodFellas (1990)*, *Shawshank Redemption, The (1994)*.
+5. **Research Integrity**:
+   - The demo is a demonstration tool for interactive exploration. It does not alter the pre-registered MovieLens-1M TEST evaluation results. The **Research tab** displays the true frozen experimental metrics (validation ablation lift: $+9.2\%$; test HR@10: $+5.87\%$, $p=0.002$; test MRR@10: $+6.89\%$, $p=0.004$).
+
+---
+
+### 3. Running the Streamlit Demo
+
+1. **(Optional) Verify Artifacts**:
+   ```bash
+   python scripts/prepare_demo_artifacts.py
+   ```
+2. **Launch Application**:
+   ```bash
+   streamlit run streamlit_app.py
+   ```
+   Open `http://localhost:8501` in your browser.
+
+For complete presentation sequence, walkthrough tips, and screenshot instructions, see [docs/demo.md](file:///Users/harsh9703/plotgraph-movie-recommender/docs/demo.md).
+
+
 
 
 
